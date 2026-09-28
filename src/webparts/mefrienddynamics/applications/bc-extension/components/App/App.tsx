@@ -282,6 +282,7 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, acce
           invoiceService={invoiceService}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
+          selectedCompany={selectedCompany}
         />
       );
     }

@@ -4,6 +4,7 @@ import type { ISortState, SortDirection } from '../../../../../shared/models/ISo
 import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem, PaymentStatus } from '../../../models/invoices';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
+import type { BcCompany } from '../../../config/bcCompanies';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
@@ -25,6 +26,7 @@ export interface IInvoicePageProps {
   invoiceService: InvoiceService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
+  selectedCompany: BcCompany;
 }
 
 interface IInvoiceDocumentAction {
@@ -63,7 +65,7 @@ const normalizeInvoiceDescriptions = (invoice: IInvoiceDetail): IInvoiceDetail =
   }))
 });
 
-export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceService, salespersonService, onNavigate }) => {
+export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceService, salespersonService, onNavigate, selectedCompany }) => {
   const toast = useToast();
   const { filters, restrictedSalespersonCode } = useSalespersonFilter(
     invoicesModuleConfig.filters || [],
@@ -238,26 +240,28 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
           ? handleRowClick
           : undefined
       }
-      rowActions={[
-        {
-          key: 'print',
-          label: documentAction?.type === 'print' ? 'Preparing print...' : 'Print',
-          icon: 'print',
-          disabled: () => Boolean(documentAction),
-          onClick: item => {
-            handlePrint(item).catch(() => undefined);
-          }
-        },
-        {
-          key: 'download',
-          label: documentAction?.type === 'download' ? 'Downloading...' : 'Download',
-          icon: 'download',
-          disabled: () => Boolean(documentAction),
-          onClick: item => {
-            handleDownload(item).catch(() => undefined);
-          }
-        }
-      ]}
+      rowActions={selectedCompany.name === 'Ideal Publications Trust'
+        ? []
+        : [
+            {
+              key: 'print',
+              label: documentAction?.type === 'print' ? 'Preparing print...' : 'Print',
+              icon: 'print',
+              disabled: () => Boolean(documentAction),
+              onClick: item => {
+                handlePrint(item).catch(() => undefined);
+              }
+            },
+            {
+              key: 'download',
+              label: documentAction?.type === 'download' ? 'Downloading...' : 'Download',
+              icon: 'download',
+              disabled: () => Boolean(documentAction),
+              onClick: item => {
+                handleDownload(item).catch(() => undefined);
+              }
+            }
+          ]}
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
