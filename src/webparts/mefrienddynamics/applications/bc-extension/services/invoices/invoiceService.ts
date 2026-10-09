@@ -38,7 +38,8 @@ interface IInvoiceApiModel {
   cgst: number;
   igst: number;
   netAmount: number;
-  salesInvoiceLines: readonly IInvoiceLineItemApiModel[];
+  // The list endpoint returns summary records and may omit the expanded lines.
+  salesInvoiceLines?: readonly IInvoiceLineItemApiModel[];
 }
 
 type InvoiceListApiResponse = IBcPagedResult<IInvoiceApiModel>;
@@ -123,7 +124,7 @@ export class InvoiceService {
       cgst: api.cgst,
       igst: api.igst,
       netAmount: api.netAmount,
-      lines: api.salesInvoiceLines.map(line => this.mapInvoiceLineApiToUiModel(line))
+      lines: (api.salesInvoiceLines || []).map(line => this.mapInvoiceLineApiToUiModel(line))
     };
   }
 

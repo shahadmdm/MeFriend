@@ -44,7 +44,8 @@ interface ISalesOrderApiModel {
   status: string;
   createdDateTime: string;
   modifiedDateTime: string;
-  salesLines: readonly ISalesOrderLineItemApiModel[];
+  // The list endpoint returns summary records and may omit the expanded lines.
+  salesLines?: readonly ISalesOrderLineItemApiModel[];
 }
 
 type SalesOrderListApiResponse = IBcPagedResult<ISalesOrderApiModel>;
@@ -128,7 +129,7 @@ export class SalesOrderService {
       status: api.status,
       createdDateTime: api.createdDateTime,
       modifiedDateTime: api.modifiedDateTime,
-      lines: api.salesLines.map(line => this.mapSalesOrderLineApiToUiModel(line))
+      lines: (api.salesLines || []).map(line => this.mapSalesOrderLineApiToUiModel(line))
     };
   }
 
