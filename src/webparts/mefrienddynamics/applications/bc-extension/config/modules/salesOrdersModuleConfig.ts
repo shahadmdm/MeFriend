@@ -31,7 +31,7 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
   ],
   filters: [
     { key: 'searchText', label: 'Search by sales order number', type: 'text' },
-    { key: 'customerCode', label: 'Customer', type: 'text' },
+    { key: 'customerSearch', label: 'Customer', type: 'text', placeholder: 'Customer name or code' },
     { key: 'status', label: 'Status', type: 'status', options: salesOrderStatusOptions },
     { key: 'salespersonCode', label: 'Salesperson', type: 'dropdown', searchable: true }
   ],

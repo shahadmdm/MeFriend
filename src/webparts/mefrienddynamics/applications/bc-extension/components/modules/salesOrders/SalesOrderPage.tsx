@@ -22,7 +22,7 @@ export interface ISalesOrderPageProps {
 
 const toSalesOrderFilters = (values: EntityFilterValues): ISalesOrderFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  customerCode: typeof values.customerCode === 'string' ? values.customerCode : undefined,
+  customerSearch: typeof values.customerSearch === 'string' ? values.customerSearch : undefined,
   salespersonCode: typeof values.salespersonCode === 'string' ? values.salespersonCode : undefined,
   status: typeof values.status === 'string' ? (values.status as SalesOrderStatus) : undefined
 });
@@ -57,8 +57,10 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
   const [sorting, setSorting] = React.useState<ISortState | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
+  const salesOrderRequestIdRef = React.useRef<number>(0);
 
   const loadSalesOrders = React.useCallback(async (): Promise<void> => {
+    const requestId = ++salesOrderRequestIdRef.current;
     setLoading(true);
     setError(undefined);
 
@@ -69,18 +71,33 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
         sorting,
         currentUser
       );
+
+      if (requestId !== salesOrderRequestIdRef.current) {
+        return;
+      }
+
       setItems(result.items);
       applyResult(result);
     } catch (loadError) {
+      if (requestId !== salesOrderRequestIdRef.current) {
+        return;
+      }
+
       setItems([]);
       setError(getListErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (requestId === salesOrderRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [appliedFilterValues, applyResult, currentUser, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
 
   React.useEffect(() => {
     loadSalesOrders().catch(() => undefined);
+
+    return () => {
+      salesOrderRequestIdRef.current += 1;
+    };
   }, [loadSalesOrders]);
 
   React.useEffect(() => {

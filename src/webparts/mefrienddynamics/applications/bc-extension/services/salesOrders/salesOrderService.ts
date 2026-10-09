@@ -64,6 +64,9 @@ export class SalesOrderService {
     const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
     const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders', buildBcPageQuery({
       search: filters.searchText,
+      parameters: {
+        customerSearch: filters.customerSearch
+      },
       filters: {
         customerCode: filters.customerCode,
         salespersonCode,
@@ -72,11 +75,21 @@ export class SalesOrderService {
     }, pagination, sorting));
     const result = response.data;
 
+    if (!response.success || !result || !Array.isArray(result.items)) {
+      const responseError = new Error(response.message || 'Sales Order API returned an invalid list response.') as Error & {
+        errors?: readonly string[];
+        correlationId?: string;
+      };
+      responseError.errors = response.errors;
+      responseError.correlationId = response.correlationId;
+      throw responseError;
+    }
+
     return {
-      items: (result?.items || []).map(item => this.mapSalesOrderApiToUiModel(item)),
-      pageSize: result?.pageSize || pagination.pageSize,
-      hasNext: Boolean(result?.hasNext),
-      nextToken: result?.nextToken
+      items: result.items.map(item => this.mapSalesOrderApiToUiModel(item)),
+      pageSize: result.pageSize || pagination.pageSize,
+      hasNext: Boolean(result.hasNext),
+      nextToken: result.nextToken
     };
   }
 

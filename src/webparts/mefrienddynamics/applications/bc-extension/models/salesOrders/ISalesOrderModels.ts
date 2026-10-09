@@ -83,6 +83,8 @@ export interface ISalesOrderLineDimensionRequest {
 
 export interface ISalesOrderFilters {
   searchText?: string;
+  customerSearch?: string;
+  /** Exact-code filter retained for API consumers that require it. */
   customerCode?: string;
   salespersonCode?: string;
   status?: SalesOrderStatus;
