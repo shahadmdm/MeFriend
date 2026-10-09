@@ -363,11 +363,10 @@ export class ApprovalProcessingService {
       throw new Error('This request is not currently in approval.');
     }
 
-    const workflows = await this.approvalWorkflowService.getWorkflows();
-    const workflow = workflows.filter(item => item.id === request.workflowId)[0];
+    const workflow = await this.approvalWorkflowService.getWorkflowById(request.workflowId);
 
-    if (!workflow || !workflow.isActive) {
-      throw new Error('The request workflow is no longer active.');
+    if (!workflow) {
+      throw new Error('The workflow snapshot for this request no longer exists.');
     }
 
     const workflowSteps = await this.approvalWorkflowService.getWorkflowSteps(request.workflowId);
@@ -427,8 +426,7 @@ export class ApprovalProcessingService {
       throw new Error('Only the original submitter or a module manager can resubmit this request.');
     }
 
-    const workflows = await this.approvalWorkflowService.getWorkflows();
-    const workflow = workflows.filter(item => item.id === request.workflowId)[0];
+    const workflow = await this.approvalWorkflowService.getWorkflowById(request.workflowId);
 
     if (!workflow || !workflow.allowResubmission) {
       throw new Error('This workflow does not allow resubmission.');

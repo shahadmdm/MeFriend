@@ -27,7 +27,7 @@ export const groupActiveWorkflowLevels = (
     .filter((levelNumber, index, all) => all.indexOf(levelNumber) === index)
     .sort((left, right) => left - right);
 
-  return levelNumbers.map(levelNumber => {
+  return levelNumbers.map((levelNumber, index) => {
     const levelSteps = activeSteps
       .filter(step => step.levelNumber === levelNumber)
       .sort((left, right) => left.sequence - right.sequence);
@@ -40,12 +40,19 @@ export const groupActiveWorkflowLevels = (
     const inconsistentStep = levelSteps.filter(step =>
       step.stepName !== firstStep.stepName ||
       step.approvalMode !== firstStep.approvalMode ||
-      step.requiredApprovals !== firstStep.requiredApprovals ||
-      step.isFinalLevel !== firstStep.isFinalLevel
+      step.requiredApprovals !== firstStep.requiredApprovals
     )[0];
+    const approverIds = levelSteps.map(step => step.approverId);
+    const hasDuplicateApprover = approverIds.some((approverId, approverIndex) =>
+      approverIds.indexOf(approverId) !== approverIndex
+    );
 
     if (inconsistentStep) {
       throw new Error(`Workflow level ${levelNumber} has inconsistent approval settings.`);
+    }
+
+    if (hasDuplicateApprover) {
+      throw new Error(`Workflow level ${levelNumber} contains duplicate approvers.`);
     }
 
     return {
@@ -53,7 +60,7 @@ export const groupActiveWorkflowLevels = (
       stepName: firstStep.stepName,
       approvalMode: firstStep.approvalMode,
       requiredApprovals: firstStep.requiredApprovals,
-      isFinalLevel: firstStep.isFinalLevel,
+      isFinalLevel: index === levelNumbers.length - 1,
       steps: levelSteps
     };
   });
@@ -62,11 +69,15 @@ export const groupActiveWorkflowLevels = (
 export const getEffectiveRequiredApprovals = (level: IApprovalLevelDefinition): number => {
   const activeApproverCount = level.steps.length;
 
+  if (level.approvalMode === 'All') {
+    return activeApproverCount;
+  }
+
   if (level.requiredApprovals >= 1 && level.requiredApprovals <= activeApproverCount) {
     return level.requiredApprovals;
   }
 
-  return level.approvalMode === 'All' ? activeApproverCount : 1;
+  return 1;
 };
 
 export const evaluateLevelCompletion = (

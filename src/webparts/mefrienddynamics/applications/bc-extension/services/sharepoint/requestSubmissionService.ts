@@ -153,15 +153,15 @@ export class RequestSubmissionService {
 
   public async getCustomerRequestDetail(idOrRequestNumber: string): Promise<IRequestDetailResult<ICustomerRequest>> {
     const request = await this.loadCustomerRequest(idOrRequestNumber);
-    const [tasks, workflows, steps] = await Promise.all([
+    const [tasks, workflow, steps] = await Promise.all([
       this.approvalTaskService.getTasksForRequest('Customer', request.requestNumber),
-      this.approvalWorkflowService.getWorkflows(),
+      this.approvalWorkflowService.getWorkflowById(request.workflowId),
       this.approvalWorkflowService.getWorkflowSteps(request.workflowId)
     ]);
 
     return {
       request,
-      workflow: workflows.filter(workflow => workflow.id === request.workflowId)[0],
+      workflow,
       workflowSteps: steps,
       approvalTasks: tasks
     };
@@ -179,17 +179,17 @@ export class RequestSubmissionService {
 
   public async getSalesOrderRequestDetail(idOrRequestNumber: string): Promise<ISalesOrderRequestDetailResult> {
     const request = await this.loadSalesOrderRequest(idOrRequestNumber);
-    const [lines, tasks, workflows, steps] = await Promise.all([
+    const [lines, tasks, workflow, steps] = await Promise.all([
       this.salesOrderRequestService.getRequestLines(request.id),
       this.approvalTaskService.getTasksForRequest('SalesOrder', request.requestNumber),
-      this.approvalWorkflowService.getWorkflows(),
+      this.approvalWorkflowService.getWorkflowById(request.workflowId),
       this.approvalWorkflowService.getWorkflowSteps(request.workflowId)
     ]);
 
     return {
       request,
       lines,
-      workflow: workflows.filter(workflow => workflow.id === request.workflowId)[0],
+      workflow,
       workflowSteps: steps,
       approvalTasks: tasks
     };

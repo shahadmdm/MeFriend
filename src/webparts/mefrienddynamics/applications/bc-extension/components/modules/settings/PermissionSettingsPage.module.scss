@@ -464,6 +464,21 @@
   justify-content: space-between;
 }
 
+.levelTitle {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.levelTitle span {
+  background: #ede9ff;
+  border-radius: 999px;
+  color: #4a22b7;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+}
+
 .approverList {
   display: grid;
   gap: 10px;
@@ -471,7 +486,39 @@
 }
 
 .approverDropdown {
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.approverRow {
+  align-items: flex-end;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.removeApprover {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #667085;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 38px;
+  height: 38px;
+  justify-content: center;
+  margin-bottom: 0;
+}
+
+.removeApprover:hover {
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.removeApprover:disabled {
+  color: #98a2b3;
+  cursor: not-allowed;
 }
 
 .formActions {
