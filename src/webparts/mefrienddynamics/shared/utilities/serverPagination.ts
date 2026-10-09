@@ -84,6 +84,7 @@ export const moveToCursorPage = (
 
 export interface IBcPageQueryOptions {
   search?: string;
+  parameters?: ServerFilterValues;
   filters?: ServerFilterValues;
 }
 
@@ -99,6 +100,10 @@ export const buildBcPageQuery = (
     SortField: sorting?.fieldName,
     SortDirection: sorting?.direction
   };
+
+  Object.keys(options.parameters || {}).forEach(key => {
+    query[key] = options.parameters?.[key];
+  });
 
   Object.keys(options.filters || {}).forEach(key => {
     query[`Filters[${key}]`] = options.filters?.[key];

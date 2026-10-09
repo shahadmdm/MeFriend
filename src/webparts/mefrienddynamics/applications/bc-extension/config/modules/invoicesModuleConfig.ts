@@ -21,7 +21,7 @@ export const invoicesModuleConfig: IModuleConfig<IInvoiceListItem> = {
   filters: [
     { key: 'searchText', label: 'Search by invoice number', type: 'text' },
     { key: 'invoiceDate', label: 'Invoice Date', type: 'dateRange' },
-    { key: 'customerCode', label: 'Customer', type: 'text' },
+    { key: 'customerSearch', label: 'Customer', type: 'text', placeholder: 'Customer name or code' },
     { key: 'salespersonCode', label: 'Salesperson', type: 'dropdown', searchable: true }
   ]
 };

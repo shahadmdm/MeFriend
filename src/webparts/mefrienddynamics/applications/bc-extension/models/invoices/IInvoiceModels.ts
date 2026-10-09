@@ -40,6 +40,8 @@ export interface IInvoiceDetail extends IInvoiceListItem {
 
 export interface IInvoiceFilters {
   searchText?: string;
+  customerSearch?: string;
+  /** Exact-code filter retained for API consumers that require it. */
   customerCode?: string;
   salespersonCode?: string;
   invoiceDateFrom?: string;

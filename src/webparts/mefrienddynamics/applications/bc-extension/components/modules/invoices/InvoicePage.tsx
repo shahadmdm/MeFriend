@@ -2,7 +2,7 @@ import * as React from 'react';
 import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
 import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
-import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem } from '../../../models/invoices';
+import type { IInvoiceDetail, IInvoiceListItem } from '../../../models/invoices';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { isMefriendBusinessSolutionsCompany, type BcCompany } from '../../../config/bcCompanies';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
@@ -23,6 +23,7 @@ import {
   writeInvoicePrintPreview
 } from './invoicePrintTemplate';
 import { enrichInvoiceLinesForPrint } from './invoicePrintUtils';
+import { hasUserInvoiceFilters, toInvoiceFilters } from './invoiceFilterUtils';
 
 export interface IInvoicePageProps {
   currentUser?: IAppUser;
@@ -37,14 +38,6 @@ export interface IInvoicePageProps {
 interface IInvoiceDocumentAction {
   type: 'download' | 'print';
 }
-
-const toInvoiceFilters = (values: EntityFilterValues): IInvoiceFilters => ({
-  searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  customerCode: typeof values.customerCode === 'string' ? values.customerCode : undefined,
-  salespersonCode: typeof values.salespersonCode === 'string' ? values.salespersonCode : undefined,
-  invoiceDateFrom: typeof values.invoiceDateFrom === 'string' ? values.invoiceDateFrom : undefined,
-  invoiceDateTo: typeof values.invoiceDateTo === 'string' ? values.invoiceDateTo : undefined
-});
 
 const getListErrorMessage = (error: unknown): string => {
   const normalizedError = normalizeError(error);
@@ -79,6 +72,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
   const [documentAction, setDocumentAction] = React.useState<IInvoiceDocumentAction | undefined>();
+  const invoiceRequestIdRef = React.useRef<number>(0);
   const documentActionsInProgress = React.useRef<Set<string>>(new Set());
   const itemMasterLookupPromiseRef = React.useRef<Promise<readonly IItemMasterLookupItem[]> | undefined>();
 
@@ -91,6 +85,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   }, [itemMasterService]);
 
   const loadInvoices = React.useCallback(async (): Promise<void> => {
+    const requestId = ++invoiceRequestIdRef.current;
     setLoading(true);
     setError(undefined);
 
@@ -98,18 +93,32 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
       const filters = toInvoiceFilters(appliedFilterValues);
       const result = await invoiceService.getInvoices(filters, pagination, sorting, currentUser);
 
+      if (requestId !== invoiceRequestIdRef.current) {
+        return;
+      }
+
       setItems(result.items);
       applyResult(result);
     } catch (loadError) {
+      if (requestId !== invoiceRequestIdRef.current) {
+        return;
+      }
+
       setItems([]);
       setError(getListErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (requestId === invoiceRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [appliedFilterValues, applyResult, currentUser, invoiceService, pagination.currentToken, pagination.pageNumber, pagination.pageSize, sorting]);
 
   React.useEffect(() => {
     loadInvoices().catch(() => undefined);
+
+    return () => {
+      invoiceRequestIdRef.current += 1;
+    };
   }, [loadInvoices]);
 
   React.useEffect(() => {
@@ -239,6 +248,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   }, [onNavigate, toast]);
 
   const showDocumentActions = isMefriendBusinessSolutionsCompany(selectedCompany);
+  const hasUserFilters = hasUserInvoiceFilters(appliedFilterValues, restrictedSalespersonCode);
 
   return (
     <EntityDashboard<IInvoiceListItem>
@@ -283,8 +293,10 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
       sorting={sorting}
       onSort={handleSort}
       getRowKey={item => item.id}
-      emptyTitle="No invoices found"
-      emptyMessage="No invoice records are available from the configured service."
+      emptyTitle={hasUserFilters ? 'No matching invoices' : 'No invoices available'}
+      emptyMessage={hasUserFilters
+        ? 'No invoices match the selected filters.'
+        : 'No invoices exist for the selected company.'}
     />
   );
 };
