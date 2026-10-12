@@ -6,6 +6,7 @@ import type { IInvoiceDetail, IInvoiceLineItem } from '../../../models/invoices'
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
+import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { EntityFormValues } from '../../../../../shared/utilities/validationUtils';
 import { EntityDetailPage, EntityDetailSection } from '../../../../../shared/components/detailPage/EntityDetailPage';
 import { FinancialSummaryCards } from '../../../../../shared/components/financialSummary/FinancialSummaryCards';
@@ -16,6 +17,7 @@ export interface IInvoiceDetailPageProps {
   currentUser?: IAppUser;
   invoiceNumber: string;
   invoiceService: InvoiceService;
+  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
 
@@ -35,15 +37,15 @@ const invoiceHeaderFields: readonly IFormFieldConfig[] = [
 ];
 
 const invoiceCustomerFields: readonly IFormFieldConfig[] = [
-  { key: 'customerCode', label: 'Customer Code', type: 'text', required: false, section: 'Customer' },
-  { key: 'customerName', label: 'Customer Name', type: 'text', required: false, section: 'Customer' },
-  { key: 'customerAddress', label: 'Customer Address', type: 'text', required: false, section: 'Customer' },
-  { key: 'customerGSTNo', label: 'Customer GST No.', type: 'text', required: false, section: 'Customer' },
-  { key: 'clientCode', label: 'Client Code', type: 'text', required: false, section: 'Customer' },
-  { key: 'clientName', label: 'Client Name', type: 'text', required: false, section: 'Customer' },
-  { key: 'clientAddress', label: 'Client Address', type: 'text', required: false, section: 'Customer' },
-  { key: 'clientGSTNo', label: 'Client GST No.', type: 'text', required: false, section: 'Customer' },
-  { key: 'salespersonCode', label: 'Salesperson', type: 'text', required: false, section: 'Customer' }
+  { key: 'billToCustomerCode', label: 'Bill-to Customer Code', type: 'text', required: false, section: 'Bill To' },
+  { key: 'billToCustomerName', label: 'Bill-to Customer Name', type: 'text', required: false, section: 'Bill To' },
+  { key: 'billToCustomerAddress', label: 'Bill-to Address', type: 'text', required: false, section: 'Bill To' },
+  { key: 'billToCustomerGSTNo', label: 'Bill-to GSTIN', type: 'text', required: false, section: 'Bill To' },
+  { key: 'sellToCustomerCode', label: 'Sell-to Customer Code', type: 'text', required: false, section: 'Ship To' },
+  { key: 'sellToCustomerName', label: 'Sell-to Customer Name', type: 'text', required: false, section: 'Ship To' },
+  { key: 'sellToCustomerAddress', label: 'Ship-to Address', type: 'text', required: false, section: 'Ship To' },
+  { key: 'sellToCustomerGSTNo', label: 'Ship-to GSTIN', type: 'text', required: false, section: 'Ship To' },
+  { key: 'salespersonName', label: 'Salesperson', type: 'text', required: false, section: 'Customer' }
 ];
 
 const getDetailErrorMessage = (error: unknown): string => {
@@ -56,7 +58,7 @@ const getDetailErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUser, invoiceNumber, invoiceService, onNavigate }) => {
+export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUser, invoiceNumber, invoiceService, salespersonService, onNavigate }) => {
   const [invoice, setInvoice] = React.useState<IInvoiceDetail | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -71,7 +73,9 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
 
       try {
         const detail = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
-        setInvoice(detail);
+        const salespersonName = await salespersonService.getSalespersonName(detail.salespersonCode)
+          .catch(() => undefined);
+        setInvoice({ ...detail, salespersonName });
       } catch (loadError) {
         setInvoice(undefined);
         setError(getDetailErrorMessage(loadError));
@@ -81,7 +85,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
     };
 
     loadInvoice().catch(() => undefined);
-  }, [currentUser, invoiceNumber, invoiceService]);
+  }, [currentUser, invoiceNumber, invoiceService, salespersonService]);
 
   const invoiceHeaderValues = React.useMemo<EntityFormValues>(
     () => ({
@@ -93,15 +97,15 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
 
   const invoiceCustomerValues = React.useMemo<EntityFormValues>(
     () => ({
-      customerCode: invoice?.customerCode || '',
-      customerName: invoice?.customerName || '',
-      customerAddress: invoice?.customerAddress || '',
-      customerGSTNo: invoice?.customerGSTNo || '',
-      clientCode: invoice?.clientCode || '',
-      clientName: invoice?.clientName || '',
-      clientAddress: invoice?.clientAddress || '',
-      clientGSTNo: invoice?.clientGSTNo || '',
-      salespersonCode: invoice?.salespersonCode || ''
+      billToCustomerCode: invoice?.billToCustomerCode || '',
+      billToCustomerName: invoice?.billToCustomerName || '',
+      billToCustomerAddress: invoice?.billToCustomerAddress || '',
+      billToCustomerGSTNo: invoice?.billToCustomerGSTNo || '',
+      sellToCustomerCode: invoice?.sellToCustomerCode || '',
+      sellToCustomerName: invoice?.sellToCustomerName || '',
+      sellToCustomerAddress: invoice?.sellToCustomerAddress || '',
+      sellToCustomerGSTNo: invoice?.sellToCustomerGSTNo || '',
+      salespersonName: invoice?.salespersonName || invoice?.salespersonCode || ''
     }),
     [invoice]
   );

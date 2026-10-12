@@ -21,7 +21,9 @@ export interface ISalesOrderListItem {
   salesOrderNumber: string;
   postingDate?: string;
   customerCode: string;
+  sellToCustomerDisplay?: string;
   clientCode: string;
+  billToCustomerDisplay?: string;
   externalDocumentNumber: string;
   orderDate?: string;
   salespersonCode: string;

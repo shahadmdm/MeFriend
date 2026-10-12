@@ -26,7 +26,16 @@ export interface IInvoiceListItem {
   clientName: string;
   clientAddress: string;
   clientGSTNo: string;
+  sellToCustomerCode: string;
+  sellToCustomerName: string;
+  sellToCustomerAddress: string;
+  sellToCustomerGSTNo: string;
+  billToCustomerCode: string;
+  billToCustomerName: string;
+  billToCustomerAddress: string;
+  billToCustomerGSTNo: string;
   salespersonCode: string;
+  salespersonName?: string;
   tradeDiscount?: number;
   sgst?: number;
   cgst?: number;

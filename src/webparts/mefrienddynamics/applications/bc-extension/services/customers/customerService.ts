@@ -10,6 +10,7 @@ import { type IBcPagedResult, type ICursorPaginationState } from '../../../../sh
 import type { ISortState } from '../../../../shared/models/ISortState';
 import { fetchAllBcLookupItems, MAX_BC_LOOKUP_PAGE_SIZE } from '../../../../shared/utilities/bcLookupPagination';
 import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
+import { normalizeMasterDataCode } from '../../utils/masterDataDisplay';
 
 interface ICustomerApiModel {
   '@odata.etag': string;
@@ -47,6 +48,8 @@ const normalizeText = (value: string): string => value.trim();
 const normalizeCode = (value: string): string => value.trim().toUpperCase();
 
 export class CustomerService {
+  private customerLookupPromise?: Promise<IBcPagedResult<ICustomerLookupItem>>;
+
   public constructor(private readonly apiClient: ApiClient) {}
 
   public async getCustomers(
@@ -72,6 +75,46 @@ export class CustomerService {
   }
 
   public async getCustomerLookup(
+    searchText?: string,
+    pageSize: number = MAX_BC_LOOKUP_PAGE_SIZE
+  ): Promise<IBcPagedResult<ICustomerLookupItem>> {
+    const normalizedSearchText = searchText?.trim();
+
+    if (!normalizedSearchText && pageSize === MAX_BC_LOOKUP_PAGE_SIZE) {
+      if (!this.customerLookupPromise) {
+        this.customerLookupPromise = this.loadCustomerLookup(undefined, pageSize)
+          .catch(error => {
+            this.customerLookupPromise = undefined;
+            throw error;
+          });
+      }
+
+      return this.customerLookupPromise;
+    }
+
+    return this.loadCustomerLookup(normalizedSearchText, pageSize);
+  }
+
+  public async getCustomerNamesByCode(codes: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const requestedCodes = new Set(codes.map(normalizeMasterDataCode).filter(Boolean));
+    if (!requestedCodes.size) {
+      return new Map<string, string>();
+    }
+
+    const lookup = await this.getCustomerLookup();
+    return lookup.items.reduce<Map<string, string>>((namesByCode, item) => {
+      const code = normalizeMasterDataCode(item.number);
+      const name = (item.name || '').trim();
+
+      if (requestedCodes.has(code) && name && !namesByCode.has(code)) {
+        namesByCode.set(code, name);
+      }
+
+      return namesByCode;
+    }, new Map<string, string>());
+  }
+
+  private async loadCustomerLookup(
     searchText?: string,
     pageSize: number = MAX_BC_LOOKUP_PAGE_SIZE
   ): Promise<IBcPagedResult<ICustomerLookupItem>> {
@@ -110,6 +153,7 @@ export class CustomerService {
       throw new Error('Business Central did not return the customer contract.');
     }
 
+    this.customerLookupPromise = undefined;
     return response.data;
   }
 

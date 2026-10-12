@@ -780,18 +780,18 @@ ${waitForInvoiceAssetsScript()}
         </tr>
         <tr class="party">
           <td>
-            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.customerName)}</span></div>
-            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.customerAddress)}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.customerGSTNo)}</span></div>
+            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.billToCustomerName)}</span></div>
+            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.billToCustomerAddress)}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.billToCustomerGSTNo)}</span></div>
           </td>
           <td>
-            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.clientName)}</span></div>
-            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.clientAddress)}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.clientGSTNo)}</span></div>
+            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.sellToCustomerName)}</span></div>
+            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.sellToCustomerAddress)}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.sellToCustomerGSTNo)}</span></div>
           </td>
         </tr>
         <tr class="reference">
-          <td colspan="2"><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salespersonCode)}</span></div></td>
+          <td colspan="2"><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salespersonName || invoice.salespersonCode)}</span></div></td>
         </tr>
       </tbody>
     </table>

@@ -6,6 +6,8 @@ import type { ISalesOrderDetail, ISalesOrderLineItem } from '../../../models/sal
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
+import type { CustomerService } from '../../../services/customers/customerService';
+import { formatMasterDataCodeAndName, normalizeMasterDataCode } from '../../../utils/masterDataDisplay';
 import type { EntityFormValues } from '../../../../../shared/utilities/validationUtils';
 import { EntityDetailPage, EntityDetailSection } from '../../../../../shared/components/detailPage/EntityDetailPage';
 import { ReadOnlyEntityForm } from '../../../../../shared/components/forms/ReadOnlyEntityForm';
@@ -14,6 +16,7 @@ import { RelatedRecordsSection } from '../../../../../shared/components/relatedR
 export interface ISalesOrderDetailPageProps {
   salesOrderId: string;
   currentUser?: IAppUser;
+  customerService: CustomerService;
   salesOrderService: SalesOrderService;
   onNavigate: (path: string) => void;
 }
@@ -21,8 +24,8 @@ export interface ISalesOrderDetailPageProps {
 const headerFields: readonly IFormFieldConfig[] = [
   { key: 'salesOrderNumber', label: 'Sales Order Number', type: 'text', required: false, section: 'Order' },
   { key: 'postingDate', label: 'Posting Date', type: 'date', required: false, section: 'Order' },
-  { key: 'customerCode', label: 'Sell-to Customer No.', type: 'text', required: false, section: 'Order' },
-  { key: 'clientCode', label: 'Bill-to Customer No.', type: 'text', required: false, section: 'Order' },
+  { key: 'sellToCustomerDisplay', label: 'Sell-to Customer', type: 'text', required: false, section: 'Order' },
+  { key: 'billToCustomerDisplay', label: 'Bill-to Customer', type: 'text', required: false, section: 'Order' },
   { key: 'externalDocumentNumber', label: 'RO No.', type: 'text', required: false, section: 'Order' },
   { key: 'orderDate', label: 'RO Date', type: 'date', required: false, section: 'Order' },
   { key: 'salespersonCode', label: 'Salesperson', type: 'text', required: false, section: 'Order' },
@@ -53,6 +56,7 @@ const getDetailErrorMessage = (error: unknown): string => {
 export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   salesOrderId,
   currentUser,
+  customerService,
   salesOrderService,
   onNavigate
 }) => {
@@ -65,7 +69,21 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       setLoading(true);
       setError(undefined);
       try {
-        setSalesOrder(await salesOrderService.getSalesOrderById(salesOrderId, currentUser));
+        const detail = await salesOrderService.getSalesOrderById(salesOrderId, currentUser);
+        const customerNames = await customerService.getCustomerNamesByCode([detail.customerCode, detail.clientCode])
+          .catch(() => new Map<string, string>());
+
+        setSalesOrder({
+          ...detail,
+          sellToCustomerDisplay: formatMasterDataCodeAndName(
+            detail.customerCode,
+            customerNames.get(normalizeMasterDataCode(detail.customerCode))
+          ),
+          billToCustomerDisplay: formatMasterDataCodeAndName(
+            detail.clientCode,
+            customerNames.get(normalizeMasterDataCode(detail.clientCode))
+          )
+        });
       } catch (loadError) {
         setSalesOrder(undefined);
         setError(getDetailErrorMessage(loadError));
@@ -75,13 +93,13 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
     };
 
     loadSalesOrder().catch(() => undefined);
-  }, [currentUser, salesOrderId, salesOrderService]);
+  }, [currentUser, customerService, salesOrderId, salesOrderService]);
 
   const values = React.useMemo<EntityFormValues>(() => ({
     salesOrderNumber: salesOrder?.salesOrderNumber || '',
     postingDate: salesOrder?.postingDate || '',
-    customerCode: salesOrder?.customerCode || '',
-    clientCode: salesOrder?.clientCode || '',
+    sellToCustomerDisplay: salesOrder?.sellToCustomerDisplay || salesOrder?.customerCode || '',
+    billToCustomerDisplay: salesOrder?.billToCustomerDisplay || salesOrder?.clientCode || '',
     externalDocumentNumber: salesOrder?.externalDocumentNumber || '',
     orderDate: salesOrder?.orderDate || '',
     salespersonCode: salesOrder?.salespersonCode || '',

@@ -7,7 +7,9 @@ import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { CustomerService } from '../../../services/customers/customerService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
+import { formatMasterDataCodeAndName, normalizeMasterDataCode } from '../../../utils/masterDataDisplay';
 import { Button } from '../../../../../shared/components/buttons/Button';
 import { EntityDashboard } from '../../../../../shared/components/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../../../../shared/components/filters/EntityFilters';
@@ -15,6 +17,7 @@ import type { EntityFilterValues, FilterValue } from '../../../../../shared/comp
 export interface ISalesOrderPageProps {
   canCreateSalesOrder: boolean;
   currentUser?: IAppUser;
+  customerService: CustomerService;
   salesOrderService: SalesOrderService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
@@ -40,6 +43,7 @@ const getListErrorMessage = (error: unknown): string => {
 export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
   canCreateSalesOrder,
   currentUser,
+  customerService,
   salesOrderService,
   salespersonService,
   onNavigate
@@ -71,12 +75,28 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
         sorting,
         currentUser
       );
+      const customerCodes = result.items.reduce<string[]>((codes, item) => {
+        codes.push(item.customerCode, item.clientCode);
+        return codes;
+      }, []);
+      const customerNames = await customerService.getCustomerNamesByCode(customerCodes)
+        .catch(() => new Map<string, string>());
 
       if (requestId !== salesOrderRequestIdRef.current) {
         return;
       }
 
-      setItems(result.items);
+      setItems(result.items.map(item => ({
+        ...item,
+        sellToCustomerDisplay: formatMasterDataCodeAndName(
+          item.customerCode,
+          customerNames.get(normalizeMasterDataCode(item.customerCode))
+        ),
+        billToCustomerDisplay: formatMasterDataCodeAndName(
+          item.clientCode,
+          customerNames.get(normalizeMasterDataCode(item.clientCode))
+        )
+      })));
       applyResult(result);
     } catch (loadError) {
       if (requestId !== salesOrderRequestIdRef.current) {
@@ -90,7 +110,7 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
         setLoading(false);
       }
     }
-  }, [appliedFilterValues, applyResult, currentUser, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
+  }, [appliedFilterValues, applyResult, currentUser, customerService, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
 
   React.useEffect(() => {
     loadSalesOrders().catch(() => undefined);

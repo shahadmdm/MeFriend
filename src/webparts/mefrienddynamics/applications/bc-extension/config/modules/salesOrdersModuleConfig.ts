@@ -22,8 +22,8 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
   visible: true,
   tableColumns: [
     { key: 'salesOrderNumber', header: 'Sales Order Number', fieldName: 'salesOrderNumber', sortable: true, renderType: 'text' },
-    { key: 'customerCode', header: 'Sell-to Customer No.', fieldName: 'customerCode', sortable: false, renderType: 'text', minWidth: 160 },
-    { key: 'clientCode', header: 'Bill-to Customer No.', fieldName: 'clientCode', sortable: false, renderType: 'text', minWidth: 160 },
+    { key: 'sellToCustomerDisplay', header: 'Sell-to Customer', fieldName: 'sellToCustomerDisplay', sortable: false, renderType: 'text', minWidth: 220 },
+    { key: 'billToCustomerDisplay', header: 'Bill-to Customer', fieldName: 'billToCustomerDisplay', sortable: false, renderType: 'text', minWidth: 220 },
     { key: 'orderDate', header: 'RO Date', fieldName: 'orderDate', sortable: false, renderType: 'date' },
     { key: 'postingDate', header: 'Posting Date', fieldName: 'postingDate', sortable: false, renderType: 'date' },
     { key: 'status', header: 'Status', fieldName: 'status', sortable: true, renderType: 'status' },

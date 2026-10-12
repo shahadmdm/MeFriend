@@ -7,6 +7,7 @@ import { normalizeBusinessDate } from '../../../../shared/utilities/formatUtils'
 import { getCurrentSalespersonCode, normalizeSalespersonCode } from '../../utils/salespersonDataScope';
 import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
 import { requireInvoiceNumber } from '../../utils/invoiceReference';
+import { mapInvoicePartyFields } from '../../utils/invoicePartyMapping';
 
 interface IInvoiceLineItemApiModel {
   '@odata.etag': string;
@@ -118,6 +119,9 @@ export class InvoiceService {
       clientName: api.clientName,
       clientAddress: api.clientAddress,
       clientGSTNo: api.clientGSTNo,
+      // Keep legacy fields above for list/filter compatibility and expose semantic
+      // party fields so read-only views and print templates cannot reverse them.
+      ...mapInvoicePartyFields(api),
       salespersonCode: api.salesPerson,
       tradeDiscount: api.tradeDiscount,
       sgst: api.sgst,

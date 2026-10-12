@@ -28,6 +28,8 @@ type SalespersonListApiResponse = IBcPagedResult<ISalespersonApiModel>;
 type SalespersonLookupApiResponse = IBcPagedResult<ISalespersonLookupItem>;
 
 export class SalespersonService {
+  private salespersonLookupPromise?: Promise<IBcPagedResult<ISalespersonLookupItem>>;
+
   public constructor(private readonly apiClient: ApiClient) {}
 
   public async getSalespersons(
@@ -49,6 +51,36 @@ export class SalespersonService {
   }
 
   public async getSalespersonLookup(
+    searchText?: string
+  ): Promise<IBcPagedResult<ISalespersonLookupItem>> {
+    const normalizedSearchText = searchText?.trim();
+
+    if (!normalizedSearchText) {
+      if (!this.salespersonLookupPromise) {
+        this.salespersonLookupPromise = this.loadSalespersonLookup()
+          .catch(error => {
+            this.salespersonLookupPromise = undefined;
+            throw error;
+          });
+      }
+
+      return this.salespersonLookupPromise;
+    }
+
+    return this.loadSalespersonLookup(normalizedSearchText);
+  }
+
+  public async getSalespersonName(code: string): Promise<string | undefined> {
+    const normalizedCode = normalizeSalespersonCode(code);
+    if (!normalizedCode) {
+      return undefined;
+    }
+
+    const lookup = await this.getSalespersonLookup();
+    return lookup.items.find(item => normalizeSalespersonCode(item.code) === normalizedCode)?.name || undefined;
+  }
+
+  private async loadSalespersonLookup(
     searchText?: string
   ): Promise<IBcPagedResult<ISalespersonLookupItem>> {
     const allItems = await fetchAllBcLookupItems<ISalespersonLookupItem>(async query => {

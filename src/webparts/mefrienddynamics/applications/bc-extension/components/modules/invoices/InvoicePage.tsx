@@ -132,13 +132,17 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
 
   const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
-    const itemMasters = await getItemMasterLookup().catch(() => []);
+    const [itemMasters, salespersonName] = await Promise.all([
+      getItemMasterLookup().catch(() => []),
+      salespersonService.getSalespersonName(invoice.salespersonCode).catch(() => undefined)
+    ]);
 
     return {
       ...invoice,
+      salespersonName,
       lines: enrichInvoiceLinesForPrint(invoice.lines, [], itemMasters)
     };
-  }, [currentUser, getItemMasterLookup, invoiceService]);
+  }, [currentUser, getItemMasterLookup, invoiceService, salespersonService]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
     if (key === 'salespersonCode' && currentUser?.isSalesperson === true) {
