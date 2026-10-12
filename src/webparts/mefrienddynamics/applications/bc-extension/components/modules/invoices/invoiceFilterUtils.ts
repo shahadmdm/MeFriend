@@ -6,7 +6,8 @@ export const toInvoiceFilters = (values: EntityFilterValues): IInvoiceFilters =>
   customerSearch: typeof values.customerSearch === 'string' ? values.customerSearch : undefined,
   salespersonCode: typeof values.salespersonCode === 'string' ? values.salespersonCode : undefined,
   invoiceDateFrom: typeof values.invoiceDateFrom === 'string' ? values.invoiceDateFrom : undefined,
-  invoiceDateTo: typeof values.invoiceDateTo === 'string' ? values.invoiceDateTo : undefined
+  invoiceDateTo: typeof values.invoiceDateTo === 'string' ? values.invoiceDateTo : undefined,
+  outstandingOnly: values.outstandingOnly === true ? true : undefined
 });
 
 export const hasUserInvoiceFilters = (
@@ -20,6 +21,7 @@ export const hasUserInvoiceFilters = (
     filters.customerSearch?.trim() ||
     filters.invoiceDateFrom ||
     filters.invoiceDateTo ||
+    filters.outstandingOnly === true ||
     (!restrictedSalespersonCode && filters.salespersonCode)
   );
 };

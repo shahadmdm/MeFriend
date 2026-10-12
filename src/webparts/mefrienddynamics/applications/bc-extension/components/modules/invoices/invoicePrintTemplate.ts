@@ -135,11 +135,14 @@ const amountToWords = (amount: number): string => {
   return `${rupeeWords} Rupees${paiseWords} Only`;
 };
 
-const resolveAmountInWords = (invoice: IInvoiceDetail): string => amountToWords(invoice.netAmount || 0);
+const resolveAmountInWords = (invoice: IInvoiceDetail): string => typeof invoice.totalAmountIncludingTax === 'number'
+  ? amountToWords(invoice.totalAmountIncludingTax)
+  : '';
 
-const renderAddressLines = (value?: string): string => {
-  return escapeHtml(value).split(/\r?\n/).filter(Boolean).join('<br />');
-};
+const renderAddressParts = (parts: readonly (string | undefined)[]): string => parts
+  .filter(part => Boolean(part && part.trim()))
+  .map(part => escapeHtml(part))
+  .join('<br />');
 
 const getQrMarkup = (): string => '<div class="qrBox"></div>';
 
@@ -707,9 +710,9 @@ export const buildInvoicePrintHtml = (
     ? invoice.lines.map(renderLine).join('')
     : renderBlankLine();
   const blankRows = invoice.lines.length < 2 ? renderBlankLine() : '';
-  const grossAmount = invoice.netAmount ?? invoice.lines.reduce((total, line) => total + line.lineAmount, 0);
-  const invoiceDiscountAmount = invoice.tradeDiscount ?? 0;
-  const subTotal = grossAmount - invoiceDiscountAmount;
+  const grossAmount = invoice.subtotal;
+  const invoiceDiscountAmount = invoice.discountAmount;
+  const subTotal = invoice.totalAmountExcludingTax;
   const pageModeClass = resolvePageModeClass(invoice);
   const autoPrint = options.autoPrint !== false;
   const downloadMode = options.downloadMode === true;
@@ -720,7 +723,7 @@ export const buildInvoicePrintHtml = (
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tax Invoice ${escapeHtml(invoice.invoiceNumber)}</title>
+  <title>Tax Invoice ${escapeHtml(invoice.number)}</title>
   <style>${buildStyles()}</style>
   ${autoPrint ? `<script>
     (function () {
@@ -771,7 +774,7 @@ ${waitForInvoiceAssetsScript()}
       </colgroup>
       <tbody>
         <tr class="invoiceInfo">
-          <td>Invoice No : ${escapeHtml(invoice.invoiceNumber)}</td>
+          <td>Invoice No : ${escapeHtml(invoice.number)}</td>
           <td>Invoice Date : ${escapeHtml(formatPrintDate(invoice.invoiceDate))}</td>
         </tr>
         <tr class="sectionHead">
@@ -781,17 +784,17 @@ ${waitForInvoiceAssetsScript()}
         <tr class="party">
           <td>
             <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.billToCustomerName)}</span></div>
-            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.billToCustomerAddress)}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.billToCustomerGSTNo)}</span></div>
+            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressParts([invoice.billToAddressLine1, invoice.billToAddressLine2, invoice.billToCity, invoice.billToState, invoice.billToPostCode, invoice.billToCountryCode])}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.customerGSTRegistrationNumber)}</span></div>
           </td>
           <td>
-            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.sellToCustomerName)}</span></div>
-            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.sellToCustomerAddress)}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.sellToCustomerGSTNo)}</span></div>
+            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.shipToName)}</span></div>
+            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressParts([invoice.shipToAddressLine1, invoice.shipToAddressLine2, invoice.shipToCity, invoice.shipToState, invoice.shipToPostCode, invoice.shipToCountryCode])}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.customerGSTRegistrationNumber)}</span></div>
           </td>
         </tr>
         <tr class="reference">
-          <td colspan="2"><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salespersonName || invoice.salespersonCode)}</span></div></td>
+          <td colspan="2"><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salespersonName || invoice.salesperson)}</span></div></td>
         </tr>
       </tbody>
     </table>
@@ -807,7 +810,7 @@ ${waitForInvoiceAssetsScript()}
       </colgroup>
       <thead>
         <tr class="continuedHeaderRow">
-          <th colspan="7">TAX INVOICE &nbsp; ${escapeHtml(invoice.invoiceNumber)} &nbsp; ${escapeHtml(formatPrintDate(invoice.invoiceDate))}</th>
+          <th colspan="7">TAX INVOICE &nbsp; ${escapeHtml(invoice.number)} &nbsp; ${escapeHtml(formatPrintDate(invoice.invoiceDate))}</th>
         </tr>
         <tr>
           <th class="center">Sl. No.</th>
@@ -827,10 +830,10 @@ ${waitForInvoiceAssetsScript()}
         <tr><td colspan="6" class="summaryLabel">Gross Amount</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(grossAmount))}</td></tr>
         <tr><td colspan="6" class="summaryLabel">Trade Discount</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoiceDiscountAmount))}</td></tr>
         <tr><td colspan="6" class="summaryLabel">Sub Total</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(subTotal))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">SGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.sgst))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">CGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.cgst))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">IGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.igst))}</td></tr>
-        <tr class="grandTotal"><td colspan="6" class="summaryLabel">Net Amount</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.netAmount))}</td></tr>
+        <tr><td colspan="6" class="summaryLabel">SGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.sgstAmount))}</td></tr>
+        <tr><td colspan="6" class="summaryLabel">CGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.cgstAmount))}</td></tr>
+        <tr><td colspan="6" class="summaryLabel">IGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.igstAmount))}</td></tr>
+        <tr class="grandTotal"><td colspan="6" class="summaryLabel">Net Amount</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.totalAmountIncludingTax))}</td></tr>
       </tbody>
     </table>
     <section class="footerArea" aria-label="Invoice footer">
@@ -865,7 +868,7 @@ const sanitizeFileName = (value: string): string => normalizeFileName(value)
   .replace(/[^a-zA-Z0-9._-]+/g, '-')
   .replace(/^-+|-+$/g, '') || 'invoice';
 
-const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `Invoice_${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
+const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `Invoice_${sanitizeFileName(invoice.number)}.pdf`;
 
 const waitForDocumentAssets = async (invoiceDocument: Document): Promise<void> => {
   const images = Array.from(invoiceDocument.images || []);

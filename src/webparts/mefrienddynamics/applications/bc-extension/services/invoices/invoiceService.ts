@@ -7,7 +7,6 @@ import { normalizeBusinessDate } from '../../../../shared/utilities/formatUtils'
 import { getCurrentSalespersonCode, normalizeSalespersonCode } from '../../utils/salespersonDataScope';
 import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
 import { requireInvoiceNumber } from '../../utils/invoiceReference';
-import { mapInvoicePartyFields } from '../../utils/invoicePartyMapping';
 
 interface IInvoiceLineItemApiModel {
   '@odata.etag': string;
@@ -21,24 +20,86 @@ interface IInvoiceLineItemApiModel {
 }
 
 interface IInvoiceApiModel {
-  '@odata.etag': string;
+  '@odata.etag'?: string;
   id: string;
-  invoiceNo: string;
-  invoiceDate: string;
-  customerCode: string;
+  number: string;
+  invoiceDate?: string;
+  postingDate?: string;
+  documentDate?: string;
+  dueDate?: string;
+  externalDocumentNumber?: string;
+  orderNumber?: string;
+  yourReference?: string;
+  customerNumber: string;
   customerName: string;
-  customerAddress: string;
-  customerGSTNo: string;
-  clientCode: string;
-  clientName: string;
-  clientAddress: string;
-  clientGSTNo: string;
-  salesPerson: string;
-  tradeDiscount: number;
-  sgst: number;
-  cgst: number;
-  igst: number;
-  netAmount: number;
+  releaseOrderNumber?: string;
+  releaseOrderDate?: string;
+  salesperson: string;
+  totalAmountIncludingTax?: number;
+  remainingAmount?: number;
+  paymentStatus?: string;
+  documentStatus?: string;
+  sellToCustomerNumber?: string;
+  sellToCustomerName?: string;
+  billToCustomerNumber?: string;
+  billToCustomerName?: string;
+  billToAddressLine1?: string;
+  billToAddressLine2?: string;
+  billToCity?: string;
+  billToState?: string;
+  billToPostCode?: string;
+  billToCountryCode?: string;
+  shipToName?: string;
+  shipToAddressLine1?: string;
+  shipToAddressLine2?: string;
+  shipToCity?: string;
+  shipToState?: string;
+  shipToPostCode?: string;
+  shipToCountryCode?: string;
+  customerGSTRegistrationNumber?: string;
+  placeOfSupply?: string;
+  gstCustomerType?: string;
+  gstInvoice?: boolean;
+  hasGSTEntries?: boolean;
+  responsibilityCenter?: string;
+  locationCode?: string;
+  currencyCode?: string;
+  currencyFactor?: number;
+  paymentTermsCode?: string;
+  shipmentMethodCode?: string;
+  pricesIncludeTax?: boolean;
+  subtotal?: number;
+  discountAmount?: number;
+  totalAmountExcludingTax?: number;
+  sgstAmount?: number;
+  cgstAmount?: number;
+  igstAmount?: number;
+  utgstAmount?: number;
+  cessAmount?: number;
+  otherGSTAmount?: number;
+  totalTaxAmount?: number;
+  hasCustomerLedgerEntry?: boolean;
+  customerLedgerEntryNumber?: number;
+  originalAmount?: number;
+  settledAmount?: number;
+  originalAmountLCY?: number;
+  remainingAmountLCY?: number;
+  customerLedgerDueDate?: string;
+  closedAtDate?: string;
+  isOpen?: boolean;
+  isPaid?: boolean;
+  isPartiallyPaid?: boolean;
+  isOverdue?: boolean;
+  daysOverdue?: number;
+  postingDescription?: string;
+  shortcutDimension1Code?: string;
+  shortcutDimension2Code?: string;
+  dimensionSetId?: number;
+  customerPostingGroup?: string;
+  paymentMethodCode?: string;
+  companyBankAccountCode?: string;
+  sourceCode?: string;
+  lastModifiedDateTime?: string;
   // The list endpoint returns summary records and may omit the expanded lines.
   salesInvoiceLines?: readonly IInvoiceLineItemApiModel[];
 }
@@ -60,7 +121,8 @@ export class InvoiceService {
     const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices', buildBcPageQuery({
       search: filters.searchText,
       parameters: {
-        customerSearch: filters.customerSearch
+        customerSearch: filters.customerSearch,
+        outstandingOnly: filters.outstandingOnly === true ? true : undefined
       },
       filters: {
         customerCode: filters.customerCode,
@@ -97,7 +159,7 @@ export class InvoiceService {
       { salespersonCode }
     );
 
-    if (!response.data || (salespersonCode && normalizeSalespersonCode(response.data.salesPerson) !== salespersonCode)) {
+    if (!response.data || (salespersonCode && normalizeSalespersonCode(response.data.salesperson) !== salespersonCode)) {
       const notFoundError = new Error(`Invoice ${invoiceReference} was not found.`) as Error & { status?: number };
       notFoundError.status = 404;
       throw notFoundError;
@@ -109,25 +171,84 @@ export class InvoiceService {
   public mapInvoiceApiToUiModel(api: IInvoiceApiModel): IInvoiceDetail {
     return {
       id: api.id,
-      invoiceNumber: api.invoiceNo,
-      invoiceDate: normalizeBusinessDate(api.invoiceDate),
-      customerCode: api.customerCode,
+      number: api.number,
+      invoiceDate: api.invoiceDate,
+      postingDate: api.postingDate,
+      documentDate: api.documentDate,
+      dueDate: api.dueDate,
+      externalDocumentNumber: api.externalDocumentNumber,
+      orderNumber: api.orderNumber,
+      yourReference: api.yourReference,
+      customerNumber: api.customerNumber,
       customerName: api.customerName,
-      customerAddress: api.customerAddress,
-      customerGSTNo: api.customerGSTNo,
-      clientCode: api.clientCode,
-      clientName: api.clientName,
-      clientAddress: api.clientAddress,
-      clientGSTNo: api.clientGSTNo,
-      // Keep legacy fields above for list/filter compatibility and expose semantic
-      // party fields so read-only views and print templates cannot reverse them.
-      ...mapInvoicePartyFields(api),
-      salespersonCode: api.salesPerson,
-      tradeDiscount: api.tradeDiscount,
-      sgst: api.sgst,
-      cgst: api.cgst,
-      igst: api.igst,
-      netAmount: api.netAmount,
+      releaseOrderNumber: api.releaseOrderNumber,
+      releaseOrderDate: api.releaseOrderDate,
+      salesperson: api.salesperson,
+      totalAmountIncludingTax: api.totalAmountIncludingTax,
+      remainingAmount: api.remainingAmount,
+      paymentStatus: api.paymentStatus,
+      documentStatus: api.documentStatus,
+      sellToCustomerNumber: api.sellToCustomerNumber,
+      sellToCustomerName: api.sellToCustomerName,
+      billToCustomerNumber: api.billToCustomerNumber,
+      billToCustomerName: api.billToCustomerName,
+      billToAddressLine1: api.billToAddressLine1,
+      billToAddressLine2: api.billToAddressLine2,
+      billToCity: api.billToCity,
+      billToState: api.billToState,
+      billToPostCode: api.billToPostCode,
+      billToCountryCode: api.billToCountryCode,
+      shipToName: api.shipToName,
+      shipToAddressLine1: api.shipToAddressLine1,
+      shipToAddressLine2: api.shipToAddressLine2,
+      shipToCity: api.shipToCity,
+      shipToState: api.shipToState,
+      shipToPostCode: api.shipToPostCode,
+      shipToCountryCode: api.shipToCountryCode,
+      customerGSTRegistrationNumber: api.customerGSTRegistrationNumber,
+      placeOfSupply: api.placeOfSupply,
+      gstCustomerType: api.gstCustomerType,
+      gstInvoice: api.gstInvoice,
+      hasGSTEntries: api.hasGSTEntries,
+      responsibilityCenter: api.responsibilityCenter,
+      locationCode: api.locationCode,
+      currencyCode: api.currencyCode,
+      currencyFactor: api.currencyFactor,
+      paymentTermsCode: api.paymentTermsCode,
+      shipmentMethodCode: api.shipmentMethodCode,
+      pricesIncludeTax: api.pricesIncludeTax,
+      subtotal: api.subtotal,
+      discountAmount: api.discountAmount,
+      totalAmountExcludingTax: api.totalAmountExcludingTax,
+      sgstAmount: api.sgstAmount,
+      cgstAmount: api.cgstAmount,
+      igstAmount: api.igstAmount,
+      utgstAmount: api.utgstAmount,
+      cessAmount: api.cessAmount,
+      otherGSTAmount: api.otherGSTAmount,
+      totalTaxAmount: api.totalTaxAmount,
+      hasCustomerLedgerEntry: api.hasCustomerLedgerEntry,
+      customerLedgerEntryNumber: api.customerLedgerEntryNumber,
+      originalAmount: api.originalAmount,
+      settledAmount: api.settledAmount,
+      originalAmountLCY: api.originalAmountLCY,
+      remainingAmountLCY: api.remainingAmountLCY,
+      customerLedgerDueDate: api.customerLedgerDueDate,
+      closedAtDate: api.closedAtDate,
+      isOpen: api.isOpen,
+      isPaid: api.isPaid,
+      isPartiallyPaid: api.isPartiallyPaid,
+      isOverdue: api.isOverdue,
+      daysOverdue: api.daysOverdue,
+      postingDescription: api.postingDescription,
+      shortcutDimension1Code: api.shortcutDimension1Code,
+      shortcutDimension2Code: api.shortcutDimension2Code,
+      dimensionSetId: api.dimensionSetId,
+      customerPostingGroup: api.customerPostingGroup,
+      paymentMethodCode: api.paymentMethodCode,
+      companyBankAccountCode: api.companyBankAccountCode,
+      sourceCode: api.sourceCode,
+      lastModifiedDateTime: api.lastModifiedDateTime,
       lines: (api.salesInvoiceLines || []).map(line => this.mapInvoiceLineApiToUiModel(line))
     };
   }

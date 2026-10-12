@@ -20,10 +20,12 @@ export interface IEntityDetailPageProps {
 export interface IEntityDetailSectionProps {
   children: React.ReactNode;
   ariaLabel?: string;
+  title?: string;
 }
 
-export const EntityDetailSection: React.FC<IEntityDetailSectionProps> = ({ children, ariaLabel }) => (
+export const EntityDetailSection: React.FC<IEntityDetailSectionProps> = ({ children, ariaLabel, title }) => (
   <section className={styles.section} aria-label={ariaLabel}>
+    {title ? <h3>{title}</h3> : null}
     {children}
   </section>
 );

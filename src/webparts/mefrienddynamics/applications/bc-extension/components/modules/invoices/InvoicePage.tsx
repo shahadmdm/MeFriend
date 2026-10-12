@@ -92,12 +92,18 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     try {
       const filters = toInvoiceFilters(appliedFilterValues);
       const result = await invoiceService.getInvoices(filters, pagination, sorting, currentUser);
+      const salespersonNames = await Promise.all(result.items.map(item =>
+        salespersonService.getSalespersonName(item.salesperson).catch(() => undefined)
+      ));
 
       if (requestId !== invoiceRequestIdRef.current) {
         return;
       }
 
-      setItems(result.items);
+      setItems(result.items.map((item, index) => ({
+        ...item,
+        salespersonName: salespersonNames[index]
+      })));
       applyResult(result);
     } catch (loadError) {
       if (requestId !== invoiceRequestIdRef.current) {
@@ -111,7 +117,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
         setLoading(false);
       }
     }
-  }, [appliedFilterValues, applyResult, currentUser, invoiceService, pagination.currentToken, pagination.pageNumber, pagination.pageSize, sorting]);
+  }, [appliedFilterValues, applyResult, currentUser, invoiceService, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salespersonService, sorting]);
 
   React.useEffect(() => {
     loadInvoices().catch(() => undefined);
@@ -134,7 +140,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
     const [itemMasters, salespersonName] = await Promise.all([
       getItemMasterLookup().catch(() => []),
-      salespersonService.getSalespersonName(invoice.salespersonCode).catch(() => undefined)
+      salespersonService.getSalespersonName(invoice.salesperson).catch(() => undefined)
     ]);
 
     return {
@@ -186,7 +192,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     }
 
     try {
-      invoiceNumber = requireInvoiceNumber(item.invoiceNumber);
+      invoiceNumber = requireInvoiceNumber(item.number);
     } catch (referenceError) {
       toast.error(getUserFriendlyError(normalizeError(referenceError)), { title: 'Unable to print invoice' });
       return;
@@ -221,7 +227,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     }
 
     try {
-      invoiceNumber = requireInvoiceNumber(item.invoiceNumber);
+      invoiceNumber = requireInvoiceNumber(item.number);
     } catch (referenceError) {
       toast.error(getUserFriendlyError(normalizeError(referenceError)), { title: 'Unable to download invoice' });
       return;
@@ -234,7 +240,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
       const downloadableInvoice = await loadPrintableInvoice(invoiceNumber);
 
       await downloadInvoicePdf(downloadableInvoice);
-      toast.success('Invoice PDF download started.', { title: downloadableInvoice.invoiceNumber || 'Invoice' });
+      toast.success('Invoice PDF download started.', { title: downloadableInvoice.number || 'Invoice' });
     } catch (downloadError) {
       toast.error(getUserFriendlyError(normalizeError(downloadError)), { title: 'Unable to download invoice' });
     } finally {
@@ -245,20 +251,24 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
 
   const handleRowClick = React.useCallback((item: IInvoiceListItem): void => {
     try {
-      onNavigate(buildInvoiceDetailPath(item.invoiceNumber));
+      onNavigate(buildInvoiceDetailPath(item.number));
     } catch (referenceError) {
       toast.error(getUserFriendlyError(normalizeError(referenceError)), { title: 'Unable to open invoice' });
     }
   }, [onNavigate, toast]);
 
-  const showDocumentActions = isMefriendBusinessSolutionsCompany(selectedCompany);
+  const isMefriendBusinessCompany = isMefriendBusinessSolutionsCompany(selectedCompany);
+  const invoiceColumns = (invoicesModuleConfig.tableColumns || []).filter(column =>
+    !isMefriendBusinessCompany || (column.key !== 'releaseOrderNumber' && column.key !== 'releaseOrderDate')
+  );
+  const showDocumentActions = isMefriendBusinessCompany;
   const hasUserFilters = hasUserInvoiceFilters(appliedFilterValues, restrictedSalespersonCode);
 
   return (
     <EntityDashboard<IInvoiceListItem>
       title={invoicesModuleConfig.title}
       subtitle={invoicesModuleConfig.description}
-      columns={invoicesModuleConfig.tableColumns || []}
+      columns={invoiceColumns}
       filters={filters}
       filterValues={filterValues}
       items={items}
