@@ -351,6 +351,7 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, acce
           currentUser={access.currentAppUser}
           customerService={customerService}
           salesOrderId={route.params.id || ''}
+          salesOrderRequestService={salesOrderRequestService}
           salesOrderService={salesOrderService}
           onNavigate={handleNavigate}
         />

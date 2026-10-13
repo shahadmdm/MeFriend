@@ -53,6 +53,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   currentUser,
   itemMasterService,
   invoiceService,
+  salesOrderRequestService,
   selectedCompany,
   salespersonService,
   onNavigate
@@ -138,17 +139,24 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
 
   const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
-    const [itemMasters, salespersonName] = await Promise.all([
+    const orderNumber = (invoice.orderNumber || '').trim();
+    const [itemMasters, salespersonName, requestLines] = await Promise.all([
       getItemMasterLookup().catch(() => []),
-      salespersonService.getSalespersonName(invoice.salesperson).catch(() => undefined)
+      salespersonService.getSalespersonName(invoice.salesperson).catch(() => undefined),
+      orderNumber
+        ? salesOrderRequestService.getRequestLinesByBcSalesOrderNumber(orderNumber).catch(lookupError => {
+          console.warn(`Unable to load SharePoint remarks for sales order '${orderNumber}'.`, lookupError);
+          return [];
+        })
+        : Promise.resolve([])
     ]);
 
     return {
       ...invoice,
       salespersonName,
-      lines: enrichInvoiceLinesForPrint(invoice.lines, [], itemMasters)
+      lines: enrichInvoiceLinesForPrint(invoice.lines, requestLines, itemMasters)
     };
-  }, [currentUser, getItemMasterLookup, invoiceService, salespersonService]);
+  }, [currentUser, getItemMasterLookup, invoiceService, salespersonService, salesOrderRequestService]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
     if (key === 'salespersonCode' && currentUser?.isSalesperson === true) {

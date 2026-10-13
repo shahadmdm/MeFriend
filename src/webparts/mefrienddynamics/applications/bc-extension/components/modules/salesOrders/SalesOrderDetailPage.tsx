@@ -6,8 +6,10 @@ import type { ISalesOrderDetail, ISalesOrderLineItem } from '../../../models/sal
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
+import type { SalesOrderRequestService } from '../../../services/sharepoint/salesOrderRequestService';
 import type { CustomerService } from '../../../services/customers/customerService';
 import { formatMasterDataCodeAndName, normalizeMasterDataCode } from '../../../utils/masterDataDisplay';
+import { enrichLinesWithRequestRemarks } from '../../../utils/requestLineRemarks';
 import type { EntityFormValues } from '../../../../../shared/utilities/validationUtils';
 import { EntityDetailPage, EntityDetailSection } from '../../../../../shared/components/detailPage/EntityDetailPage';
 import { ReadOnlyEntityForm } from '../../../../../shared/components/forms/ReadOnlyEntityForm';
@@ -18,6 +20,7 @@ export interface ISalesOrderDetailPageProps {
   currentUser?: IAppUser;
   customerService: CustomerService;
   salesOrderService: SalesOrderService;
+  salesOrderRequestService: SalesOrderRequestService;
   onNavigate: (path: string) => void;
 }
 
@@ -45,7 +48,8 @@ const lineColumns: readonly ITableColumn<ISalesOrderLineItem>[] = [
   { key: 'unitPrice', header: 'Rate', fieldName: 'unitPrice', sortable: false, renderType: 'amount' },
   { key: 'lineDiscountPercentage', header: 'Line Discount %', fieldName: 'lineDiscountPercentage', sortable: false, renderType: 'text' },
   { key: 'lineAmount', header: 'Line Amount Excl. VAT', fieldName: 'lineAmount', sortable: false, renderType: 'amount' },
-  { key: 'invoiceDiscountAmountExclVat', header: 'Invoice Discount Excl. VAT', fieldName: 'invoiceDiscountAmountExclVat', sortable: false, renderType: 'amount' }
+  { key: 'invoiceDiscountAmountExclVat', header: 'Invoice Discount Excl. VAT', fieldName: 'invoiceDiscountAmountExclVat', sortable: false, renderType: 'amount' },
+  { key: 'remarks', header: 'Remarks', fieldName: 'remarks', sortable: false, renderType: 'text' }
 ];
 
 const getDetailErrorMessage = (error: unknown): string => {
@@ -58,6 +62,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   currentUser,
   customerService,
   salesOrderService,
+  salesOrderRequestService,
   onNavigate
 }) => {
   const [salesOrder, setSalesOrder] = React.useState<ISalesOrderDetail | undefined>();
@@ -70,8 +75,15 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       setError(undefined);
       try {
         const detail = await salesOrderService.getSalesOrderById(salesOrderId, currentUser);
-        const customerNames = await customerService.getCustomerNamesByCode([detail.customerCode, detail.clientCode])
-          .catch(() => new Map<string, string>());
+        const [customerNames, requestLines] = await Promise.all([
+          customerService.getCustomerNamesByCode([detail.customerCode, detail.clientCode])
+            .catch(() => new Map<string, string>()),
+          salesOrderRequestService.getRequestLinesByBcSalesOrderNumber(detail.salesOrderNumber)
+            .catch(lookupError => {
+              console.warn(`Unable to load SharePoint remarks for sales order '${detail.salesOrderNumber}'.`, lookupError);
+              return [];
+            })
+        ]);
 
         setSalesOrder({
           ...detail,
@@ -82,7 +94,8 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
           billToCustomerDisplay: formatMasterDataCodeAndName(
             detail.clientCode,
             customerNames.get(normalizeMasterDataCode(detail.clientCode))
-          )
+          ),
+          lines: enrichLinesWithRequestRemarks(detail.lines, requestLines)
         });
       } catch (loadError) {
         setSalesOrder(undefined);
@@ -93,7 +106,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
     };
 
     loadSalesOrder().catch(() => undefined);
-  }, [currentUser, customerService, salesOrderId, salesOrderService]);
+  }, [currentUser, customerService, salesOrderId, salesOrderRequestService, salesOrderService]);
 
   const values = React.useMemo<EntityFormValues>(() => ({
     salesOrderNumber: salesOrder?.salesOrderNumber || '',
