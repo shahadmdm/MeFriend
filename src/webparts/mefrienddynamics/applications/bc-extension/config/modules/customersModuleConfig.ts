@@ -40,6 +40,8 @@ const isIndiaCustomer = (values: Readonly<Record<string, unknown>>): boolean =>
   normalizeCode(values.countryRegionCode) === indiaCountryCode;
 const isRegisteredGstCustomer = (values: Readonly<Record<string, unknown>>): boolean =>
   gstRegisteredCustomerTypes.indexOf(normalizeCode(values.gstCustomerType)) !== -1;
+const isUnregisteredGstCustomer = (values: Readonly<Record<string, unknown>>): boolean =>
+  normalizeCode(values.gstCustomerType) === 'UNREGISTERED';
 const matchesLookupOption = (options: readonly ILookupOption[], value: unknown): boolean => {
   const normalizedValue = normalizeCode(value);
 
@@ -233,7 +235,7 @@ export const getCustomerFormFields = (
           type: 'custom',
           message: 'Post Code is required when Country / Region Code is IN.',
           validator: (_value: unknown, values: Readonly<Record<string, unknown>>) =>
-            !isIndiaCustomer(values) || normalizeCode(values.postCode).length > 0
+            !isIndiaCustomer(values) || isUnregisteredGstCustomer(values) || normalizeCode(values.postCode).length > 0
         },
         {
           type: 'custom',
@@ -284,7 +286,7 @@ export const getCustomerFormFields = (
           type: 'custom',
           message: 'PAN Number is required when Country / Region Code is IN.',
           validator: (_value: unknown, values: Readonly<Record<string, unknown>>) =>
-            !isIndiaCustomer(values) || normalizeCode(values.PAN).length > 0
+            !isIndiaCustomer(values) || isUnregisteredGstCustomer(values) || normalizeCode(values.PAN).length > 0
         },
         {
           type: 'custom',
