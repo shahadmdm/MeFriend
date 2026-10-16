@@ -785,12 +785,12 @@ ${waitForInvoiceAssetsScript()}
           <td>
             <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.billToCustomerName)}</span></div>
             <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressParts([invoice.billToAddressLine1, invoice.billToAddressLine2, invoice.billToCity, invoice.billToState, invoice.billToPostCode, invoice.billToCountryCode])}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.customerGSTRegistrationNumber)}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.billToCustomerGSTRegistrationNumber)}</span></div>
           </td>
           <td>
             <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.shipToName)}</span></div>
             <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressParts([invoice.shipToAddressLine1, invoice.shipToAddressLine2, invoice.shipToCity, invoice.shipToState, invoice.shipToPostCode, invoice.shipToCountryCode])}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.customerGSTRegistrationNumber)}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.shipToCustomerGSTRegistrationNumber)}</span></div>
           </td>
         </tr>
         <tr class="reference">

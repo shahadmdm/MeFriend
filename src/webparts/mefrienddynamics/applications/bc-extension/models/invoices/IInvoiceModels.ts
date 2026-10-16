@@ -55,6 +55,8 @@ export interface IInvoiceDetail extends IInvoiceListItem {
   shipToPostCode?: string;
   shipToCountryCode?: string;
   customerGSTRegistrationNumber?: string;
+  billToCustomerGSTRegistrationNumber?: string;
+  shipToCustomerGSTRegistrationNumber?: string;
   placeOfSupply?: string;
   gstCustomerType?: string;
   gstInvoice?: boolean;

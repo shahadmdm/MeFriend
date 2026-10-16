@@ -8,6 +8,7 @@ import { isMefriendBusinessSolutionsCompany, type BcCompany } from '../../../con
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
 import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
+import type { CustomerService } from '../../../services/customers/customerService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { SalesOrderRequestService } from '../../../services/sharepoint/salesOrderRequestService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
@@ -27,6 +28,7 @@ import { hasUserInvoiceFilters, toInvoiceFilters } from './invoiceFilterUtils';
 
 export interface IInvoicePageProps {
   currentUser?: IAppUser;
+  customerService: CustomerService;
   itemMasterService: ItemMasterService;
   invoiceService: InvoiceService;
   salesOrderRequestService: SalesOrderRequestService;
@@ -51,6 +53,7 @@ const getListErrorMessage = (error: unknown): string => {
 
 export const InvoicePage: React.FC<IInvoicePageProps> = ({
   currentUser,
+  customerService,
   itemMasterService,
   invoiceService,
   salesOrderRequestService,
@@ -140,7 +143,14 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
     const orderNumber = (invoice.orderNumber || '').trim();
-    const [itemMasters, salespersonName, requestLines] = await Promise.all([
+    const billToCustomerNumber = (invoice.billToCustomerNumber || '').trim();
+    // The invoice contract identifies the Ship To customer with its Sell-to customer number.
+    const shipToCustomerNumber = (invoice.sellToCustomerNumber || '').trim();
+    const billToGstinPromise = customerService.getCustomerGstRegistrationNumber(billToCustomerNumber);
+    const shipToGstinPromise = billToCustomerNumber.toUpperCase() === shipToCustomerNumber.toUpperCase()
+      ? billToGstinPromise
+      : customerService.getCustomerGstRegistrationNumber(shipToCustomerNumber);
+    const [itemMasters, salespersonName, requestLines, billToGstin, shipToGstin] = await Promise.all([
       getItemMasterLookup().catch(() => []),
       salespersonService.getSalespersonName(invoice.salesperson).catch(() => undefined),
       orderNumber
@@ -148,15 +158,19 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
           console.warn(`Unable to load SharePoint remarks for sales order '${orderNumber}'.`, lookupError);
           return [];
         })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      billToGstinPromise,
+      shipToGstinPromise
     ]);
 
     return {
       ...invoice,
       salespersonName,
+      billToCustomerGSTRegistrationNumber: billToGstin,
+      shipToCustomerGSTRegistrationNumber: shipToGstin,
       lines: enrichInvoiceLinesForPrint(invoice.lines, requestLines, itemMasters)
     };
-  }, [currentUser, getItemMasterLookup, invoiceService, salespersonService, salesOrderRequestService]);
+  }, [currentUser, customerService, getItemMasterLookup, invoiceService, salespersonService, salesOrderRequestService]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
     if (key === 'salespersonCode' && currentUser?.isSalesperson === true) {

@@ -114,6 +114,23 @@ export class CustomerService {
     }, new Map<string, string>());
   }
 
+  public async getCustomerGstRegistrationNumber(customerNumber?: string): Promise<string> {
+    const normalizedCustomerNumber = normalizeMasterDataCode(customerNumber);
+    if (!normalizedCustomerNumber) {
+      return '';
+    }
+
+    const customers = await fetchAllBcLookupItems<ICustomerApiModel>(async query => {
+      const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers', query);
+      return response.data;
+    }, normalizedCustomerNumber);
+    const customer = customers.find(item =>
+      normalizeMasterDataCode(item.number) === normalizedCustomerNumber
+    );
+
+    return customer?.gstRegistrationNo?.trim() || '';
+  }
+
   private async loadCustomerLookup(
     searchText?: string,
     pageSize: number = MAX_BC_LOOKUP_PAGE_SIZE
