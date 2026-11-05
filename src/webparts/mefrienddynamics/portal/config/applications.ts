@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { bcExtensionApplication } from '../../applications/bc-extension';
+import { businessPerformanceTrackerApplication } from '../../applications/business-performance-tracker';
 import type { IPortalApplicationProps } from '../../shared/models/IPortalApplicationProps';
 
 export interface IPortalApplication {
@@ -17,5 +18,6 @@ export interface IPortalApplication {
 // Register future application modules here. The launcher and router consume the
 // same registry, so neither needs a new application-specific branch.
 export const applications: readonly IPortalApplication[] = [
-  bcExtensionApplication
+  bcExtensionApplication,
+  businessPerformanceTrackerApplication
 ];
