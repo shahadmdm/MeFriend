@@ -4,12 +4,15 @@ import { verticalsModuleConfig } from './modules/verticalsModuleConfig';
 import { unitsModuleConfig } from './modules/unitsModuleConfig';
 import { targetsModuleConfig } from './modules/targetsModuleConfig';
 import { collectionReportModuleConfig } from './modules/collectionReportModuleConfig';
+import { collectionVerticalReportModuleConfig } from './modules/collectionVerticalReportModuleConfig';
+
 
 export const moduleDefinitions = [
   verticalsModuleConfig,
   unitsModuleConfig,
   targetsModuleConfig,
-  collectionReportModuleConfig
+  collectionReportModuleConfig,
+  collectionVerticalReportModuleConfig
 ] as const;
 
 export const routeDefinitions: readonly IAppRouteDefinition[] = [
@@ -82,6 +85,13 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     title: collectionReportModuleConfig.title,
     moduleKey: collectionReportModuleConfig.key,
     showInNavigation: true
+  },
+  {
+    key: 'collectionVerticalReport',
+    path: collectionVerticalReportModuleConfig.route,
+    title: collectionVerticalReportModuleConfig.title,
+    moduleKey: collectionVerticalReportModuleConfig.key,
+    showInNavigation: true
   }
 ];
 
@@ -89,5 +99,6 @@ export {
   verticalsModuleConfig,
   unitsModuleConfig,
   targetsModuleConfig,
-  collectionReportModuleConfig
+  collectionReportModuleConfig,
+  collectionVerticalReportModuleConfig
 };

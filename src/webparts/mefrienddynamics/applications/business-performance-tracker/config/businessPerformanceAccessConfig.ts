@@ -18,7 +18,8 @@ export const businessPerformancePermissionModuleKeys = [
   'bpt.verticals',
   'bpt.units',
   'bpt.targets',
-  'bpt.collectionReport'
+  'bpt.collectionReport',
+  'bpt.collectionVerticalReport'
 ] as const;
 
 export type BusinessPerformancePermissionModuleKey =
@@ -32,7 +33,8 @@ export const businessPerformancePermissionModuleLabels:
     'bpt.verticals': 'Vertical Master',
     'bpt.units': 'Unit Master',
     'bpt.targets': 'Target Master',
-    'bpt.collectionReport': 'Collection Report'
+    'bpt.collectionReport': 'Collection Report',
+    'bpt.collectionVerticalReport': 'Collection Vertical Report'
   };
 
 export const isBusinessPerformancePermissionModuleKey = (

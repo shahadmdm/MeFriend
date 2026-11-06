@@ -64,8 +64,12 @@ import {
 } from '../modules/targets';
 
 import {
-  CollectionReportPage
+  CollectionReportPage,
 } from '../modules/collectionReport';
+
+import {
+  CollectionVerticalReportPage,
+} from '../modules/collectionVerticalReport';
 
 import { ApiClient } from '../../../../shared/api/apiClient';
 import { AuthClient } from '../../../../shared/api/authClient';
@@ -73,6 +77,10 @@ import { AuthClient } from '../../../../shared/api/authClient';
 import {
   BusinessReportApiService
 } from '../../services/businessReport/businessReportApiService';
+
+import {
+  CollectionVerticalReportApiService
+} from '../../services/businessReport/collectionVerticalReportApiService';
 
 import {
   AppLayout
@@ -152,6 +160,10 @@ const routeAccessRequirements:
     collectionReport: {
       moduleKey: 'bpt.collectionReport',
       action: 'view'
+    },
+      collectionVerticalReport: {
+      moduleKey: 'bpt.collectionVerticalReport',
+      action: 'view'
     }
   };
 
@@ -189,6 +201,10 @@ const getAuthorizedLandingRoute = (
     return 'collectionReport';
   }
 
+  if (access.canView('bpt.collectionVerticalReport')) {
+    return 'collectionVerticalReport';
+  }
+
   return undefined;
 };
 
@@ -218,6 +234,10 @@ const getAllowedModuleKeys = (
 
   if (access.canView('bpt.collectionReport')) {
     allowedModuleKeys.push('collectionReport');
+  }
+
+  if (access.canView('bpt.collectionVerticalReport')) {
+    allowedModuleKeys.push('collectionVerticalReport');
   }
 
   return allowedModuleKeys;
@@ -306,6 +326,31 @@ export const App: React.FC<IPortalApplicationProps> = ({
 
     return new BusinessReportApiService(new ApiClient(authClient));
   }, [aadHttpClientFactory, httpClient]);
+
+
+  const collectionVerticalReportApiService = React.useMemo(() => {
+  const debugManifest = new URLSearchParams(
+    window.location.search
+  ).get('debugManifestsFile') || '';
+
+  if (!debugManifest.startsWith('https://localhost:4321/')) {
+    return undefined;
+  }
+
+    const authClient = new AuthClient({
+      aadHttpClientFactory,
+      httpClient,
+      settings: {
+        baseUrl: 'https://localhost:7263',
+        anonymous: true,
+        useAadHttpClient: false,
+        aadResourceUrl: ''
+      }
+    });
+
+    return new CollectionVerticalReportApiService(new ApiClient(authClient));
+  }, [aadHttpClientFactory, httpClient]);
+
 
   const targetService = React.useMemo(
     () =>
@@ -523,6 +568,20 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
+
+
+    // Collection Vertical Report
+    if (route.key === 'collectionVerticalReport') {
+      return (
+        <CollectionVerticalReportPage
+          targetService={targetService}
+          verticalService={verticalService}
+          collectionVerticalReportApiService={collectionVerticalReportApiService}
+          selectedCompanyId={selectedCompanyId}
+        />
+      );
+    }
+
 
     return (
       <div>

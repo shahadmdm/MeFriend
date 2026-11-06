@@ -1,0 +1,1 @@
+export { CollectionVerticalReportPage } from './CollectionVerticalReportPage';

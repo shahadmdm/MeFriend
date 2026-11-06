@@ -1,0 +1,596 @@
+
+/* Business Report - visual refresh only. Data, mapping and request logic stay in TSX. */
+.reportLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  width: 100%;
+}
+
+.filterPanel {
+  background: #ffffff;
+  border: 1px solid #e6e3f0;
+  border-radius: 13px;
+  box-shadow: 0 3px 14px rgba(39, 22, 82, 0.035);
+  min-width: 0;
+  padding: 20px 22px 22px;
+}
+
+.filterIntro {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.filterTitle {
+  color: #1c2236;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.filterDescription {
+  color: #75809a;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 5px 0 0;
+}
+
+.filterGrid {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(150px, 1fr) minmax(140px, 1fr) minmax(170px, 1.15fr) auto;
+  min-width: 0;
+}
+
+.filterGrid > * {
+  min-width: 0;
+}
+
+.submitControl {
+  align-items: flex-end;
+  display: flex;
+  min-height: 40px;
+}
+
+.submitControl > * {
+  min-width: 115px;
+}
+
+.reportView {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+
+.reportHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.reportEyebrow {
+  color: #6c49bb;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  margin: 0 0 7px;
+}
+
+.reportTitle {
+  color: #172033;
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.reportPeriod {
+  color: #75809a;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 5px 0 0;
+}
+
+.periodBadge {
+  background: #f0ebfc;
+  border: 1px solid #e4dcfa;
+  border-radius: 999px;
+  color: #5632a6;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 14px;
+  white-space: nowrap;
+}
+
+.overviewGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.overviewItem {
+  background: #ffffff;
+  border: 1px solid #e8e5f0;
+  border-radius: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 15px 18px;
+}
+
+.overviewLabel {
+  color: #7b849a;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.overviewValue {
+  color: #21123d;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.overviewText {
+  color: #21123d;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.reportNotice {
+  align-items: flex-start;
+  background: #f8f9fc;
+  border: 1px solid #e8ecf3;
+  border-radius: 9px;
+  color: #667085;
+  display: flex;
+  font-size: 12px;
+  gap: 10px;
+  line-height: 1.6;
+  padding: 11px 14px;
+}
+
+.noticeMarker {
+  align-items: center;
+  border: 1px solid #cdd6e6;
+  border-radius: 50%;
+  color: #62718d;
+  display: inline-flex;
+  flex: 0 0 17px;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 700;
+  height: 17px;
+  justify-content: center;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.tableShell {
+  background: #ffffff;
+  border: 1px solid #e4e6ef;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(35, 25, 65, 0.035);
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+.tableToolbar {
+  align-items: center;
+  border-bottom: 1px solid #eceef4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 13px;
+}
+
+.tableToolbarTitle {
+  align-items: center;
+  color: #253047;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 750;
+  gap: 10px;
+}
+
+.tableRowCount {
+  background: #f2effa;
+  border-radius: 999px;
+  color: #6d55a0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.scrollHint {
+  color: #8690a3;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: #c8c0df #f3f2f7;
+  scrollbar-width: thin;
+  width: 100%;
+}
+
+.tableScroll:focus-visible {
+  outline: 2px solid #6b46c1;
+  outline-offset: -2px;
+}
+
+.tableScroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.tableScroll::-webkit-scrollbar-track {
+  background: #f3f2f7;
+}
+
+.tableScroll::-webkit-scrollbar-thumb {
+  background: #c8c0df;
+  border: 2px solid #f3f2f7;
+  border-radius: 999px;
+}
+
+.reportTable {
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #172033;
+  font-size: 12px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.reportTable th,
+.reportTable td {
+  box-sizing: border-box;
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.reportTable th {
+  background: #f8f9fc;
+  border-bottom: 1px solid #e8eaf1;
+  color: #475168;
+  font-size: 11px;
+  font-weight: 750;
+  height: 37px;
+  text-align: center;
+}
+
+.reportTable td {
+  background: #ffffff;
+  border-bottom: 1px solid #eef0f5;
+  font-variant-numeric: tabular-nums;
+  height: 49px;
+}
+
+.reportTable tbody tr:nth-child(even) td {
+  background: #fcfcfe;
+}
+
+.reportTable tbody tr:hover td,
+.reportTable tbody tr:nth-child(even):hover td {
+  background: #f7f3fe;
+}
+
+.reportTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.stickyNumber,
+.stickyIdentity {
+  position: sticky;
+  z-index: 2;
+}
+
+.stickyNumber {
+  left: 0;
+  text-align: center;
+}
+
+.stickyIdentity {
+  box-shadow: 4px 0 9px -7px rgba(27, 22, 49, 0.5);
+  left: 44px;
+  text-align: left !important;
+}
+
+.reportTable thead .stickyNumber,
+.reportTable thead .stickyIdentity {
+  background: #f3f1f8;
+  z-index: 4;
+}
+
+.verticalHeader {
+  background: #f2eef9 !important;
+  border-left: 1px solid #e1d9ee;
+  color: #422e72 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.005em;
+  overflow-wrap: anywhere;
+}
+
+.metricHeader {
+  background: #faf9fd;
+  color: #667085;
+  font-size: 10px !important;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.businessHeading {
+  color: #4b328e !important;
+}
+
+.metricCell {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.businessCell {
+  color: #2f1d69;
+  font-weight: 750;
+}
+
+.identityName {
+  color: #1d273b;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.identityCode {
+  color: #7c879a;
+  font-size: 10px;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.achievementValue {
+  color: #39445b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.inactiveLabel {
+  color: #9e6514;
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+.fallback {
+  color: #adb5c4;
+  font-weight: 500;
+}
+
+.reportState {
+  background: #ffffff;
+  border: 1px solid #e8eaf1;
+  border-radius: 10px;
+  color: #667085;
+  line-height: 1.6;
+  padding: 36px 20px;
+  text-align: center;
+}
+
+.reportError {
+  background: #fff9f8;
+  border-color: #f3d2cd;
+  color: #b42318;
+}
+
+.emptyPrompt {
+  align-items: center;
+  background: #ffffff;
+  border: 1px dashed #dcd5ea;
+  border-radius: 12px;
+  color: #768099;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.55;
+  padding: 38px 20px;
+  text-align: center;
+}
+
+.emptyPrompt strong {
+  color: #283148;
+  font-size: 15px;
+}
+
+.emptyPrompt > span:last-child {
+  font-size: 12px;
+}
+
+.emptyPromptSymbol {
+  align-items: center;
+  background: #f1eafb;
+  border-radius: 12px;
+  color: #6745a5;
+  display: inline-flex;
+  font-size: 22px;
+  height: 50px;
+  justify-content: center;
+  margin-bottom: 3px;
+  width: 50px;
+}
+
+.srOnly {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Mobile cards: present each entity's targeted verticals without horizontal scrolling. */
+.mobileList {
+  display: none;
+}
+
+.mobileCard {
+  background: #ffffff;
+  border: 1px solid #e8e5f0;
+  border-radius: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mobileCardHeader {
+  background: #f5f2fb;
+  border-bottom: 1px solid #e8e5f0;
+  padding: 15px;
+}
+
+.mobileCardName {
+  color: #20283d;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.mobileCardCode {
+  color: #77829a;
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.mobileVertical {
+  border-bottom: 1px solid #eef0f5;
+  padding: 15px;
+}
+
+.mobileVertical:last-child {
+  border-bottom: 0;
+}
+
+.mobileVerticalTitle {
+  color: #493178;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+
+.mobileMetrics {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mobileMetric {
+  min-width: 0;
+}
+
+.mobileMetricLabel {
+  color: #7b8699;
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.mobileMetricValue {
+  color: #172033;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .filterGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .submitControl {
+    align-items: end;
+  }
+}
+
+@media (max-width: 767px) {
+  .reportLayout {
+    gap: 16px;
+  }
+  .filterPanel {
+    padding: 17px;
+  }
+  .filterGrid {
+    grid-template-columns: 1fr;
+  }
+  .submitControl > * {
+    width: 100%;
+  }
+  .reportView {
+    gap: 13px;
+  }
+  .reportTitle {
+    font-size: 18px;
+  }
+  .overviewGrid {
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overviewItem {
+    padding: 12px;
+  }
+  .overviewItem:last-child {
+    grid-column: 1 / -1;
+  }
+  .overviewValue {
+    font-size: 21px;
+  }
+  .tableShell {
+    display: none;
+  }
+  .mobileList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobileMetrics {
+    gap: 7px;
+  }
+  .mobileMetricValue {
+    font-size: 11px;
+  }
+}
