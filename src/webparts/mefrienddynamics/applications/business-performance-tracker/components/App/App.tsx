@@ -103,6 +103,14 @@ import {
 } from '../../services/targets/targetSalespersonLookupService';
 
 import {
+  BusinessPerformanceUnitAccessService
+} from '../../services/access/businessPerformanceUnitAccessService';
+
+import {
+  BusinessPerformanceUnitAccessManager
+} from '../modules/unitAccess/BusinessPerformanceUnitAccessManager';
+
+import {
   resolveRoute,
   buildHashHref
 } from '../../utils/routeUtils';
@@ -161,9 +169,13 @@ const routeAccessRequirements:
       moduleKey: 'bpt.collectionReport',
       action: 'view'
     },
-      collectionVerticalReport: {
+    collectionVerticalReport: {
       moduleKey: 'bpt.collectionVerticalReport',
       action: 'view'
+    },
+    unitAccess: {
+      moduleKey: 'bpt.unitAccess',
+      action: 'manage'
     }
   };
 
@@ -205,6 +217,10 @@ const getAuthorizedLandingRoute = (
     return 'collectionVerticalReport';
   }
 
+  if (access.canManage('bpt.unitAccess')) {
+    return 'unitAccess';
+  }
+
   return undefined;
 };
 
@@ -238,6 +254,10 @@ const getAllowedModuleKeys = (
 
   if (access.canView('bpt.collectionVerticalReport')) {
     allowedModuleKeys.push('collectionVerticalReport');
+  }
+
+  if (access.canManage('bpt.unitAccess')) {
+    allowedModuleKeys.push('unitAccess');
   }
 
   return allowedModuleKeys;
@@ -286,6 +306,16 @@ export const App: React.FC<IPortalApplicationProps> = ({
   const unitService = React.useMemo(
     () =>
       new UnitService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, spHttpClient]
+  );
+
+  const unitAccessService = React.useMemo(
+    () =>
+      new BusinessPerformanceUnitAccessService({
         pageContext,
         spHttpClient,
         webAbsoluteUrl: sharePointWebAbsoluteUrl
@@ -480,6 +510,21 @@ export const App: React.FC<IPortalApplicationProps> = ({
       );
     }
 
+    
+    if (route.key === 'unitAccess') {
+      return (
+        <BusinessPerformanceUnitAccessManager
+          pageContext={pageContext}
+          spHttpClient={spHttpClient}
+          webAbsoluteUrl={sharePointWebAbsoluteUrl}
+          selectedCompanyId={selectedCompanyId}
+          unitService={unitService}
+          unitAccessService={unitAccessService}
+        />
+      );
+    }
+
+
     if (route.key === 'unitCreate') {
       return (
         <UnitFormPage
@@ -576,11 +621,16 @@ export const App: React.FC<IPortalApplicationProps> = ({
         <CollectionVerticalReportPage
           targetService={targetService}
           verticalService={verticalService}
+          unitService={unitService}
+          unitAccessService={unitAccessService}
+          appUserId={access.appUserId}
+          loadSalespersons={loadTargetSalespersons}
           collectionVerticalReportApiService={collectionVerticalReportApiService}
           selectedCompanyId={selectedCompanyId}
         />
       );
     }
+
 
 
     return (

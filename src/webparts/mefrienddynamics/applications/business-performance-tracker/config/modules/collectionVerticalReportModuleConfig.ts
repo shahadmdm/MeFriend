@@ -9,6 +9,6 @@ export const collectionVerticalReportModuleConfig: IModuleConfig = {
   description: 'View salesperson-wise and unit-wise business performance against targets.',
   createEnabled: false,
   detailEnabled: false,
-  order: 10,
+  order: 6,
   visible: true
 };
