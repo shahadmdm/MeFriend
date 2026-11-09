@@ -1,42 +1,31 @@
-
 import * as React from 'react';
-
 import type { PageContext } from '@microsoft/sp-page-context';
 import type { SPHttpClient } from '@microsoft/sp-http';
-
 import {
   SharePointRestClient
 } from '../../../../../shared/services/sharepoint/sharePointRestClient';
-
 import {
   Dropdown
 } from '../../../../../shared/components/dropdowns/Dropdown';
-
 import {
   Button
 } from '../../../../../shared/components/buttons/Button';
-
 import type {
   ILookupOption
 } from '../../../../../shared/models/ILookupOption';
-
 import {
   getUserFriendlyError
 } from '../../../../../shared/api/apiErrorHandler';
-
 import {
   mefriendListTitles
 } from '../../../../bc-extension/config/sharePointConfig';
-
 import type {
   UnitService
 } from '../../../services/units/unitService';
-
 import type {
   BusinessPerformanceUnitAccessService,
   ICompanyUnitAssignment
 } from '../../../services/access/businessPerformanceUnitAccessService';
-
 interface IAppUserItem {
   Id?: number;
   ID?: number;
@@ -44,14 +33,12 @@ interface IAppUserItem {
   Email?: string;
   IsActive?: boolean;
 }
-
 interface IUserRecord {
   id: number;
   name: string;
   email: string;
   isActive: boolean;
 }
-
 interface IAssignmentDisplayRow {
   userId: number;
   name: string;
@@ -59,7 +46,6 @@ interface IAssignmentDisplayRow {
   isActive: boolean;
   unitNames: readonly string[];
 }
-
 interface IProps {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
@@ -68,7 +54,6 @@ interface IProps {
   unitService: UnitService;
   unitAccessService: BusinessPerformanceUnitAccessService;
 }
-
 export const BusinessPerformanceUnitAccessManager:
   React.FC<IProps> = ({
     pageContext,
@@ -91,60 +76,42 @@ export const BusinessPerformanceUnitAccessManager:
         webAbsoluteUrl
       ]
     );
-
     const [users, setUsers] =
       React.useState<readonly IUserRecord[]>([]);
-
     const [unitOptions, setUnitOptions] =
       React.useState<readonly ILookupOption[]>([]);
-
     const [selectedUserId, setSelectedUserId] =
       React.useState<string>('');
-
     const [selectedUnitIds, setSelectedUnitIds] =
       React.useState<readonly string[]>([]);
-
     const [companyAssignments, setCompanyAssignments] =
       React.useState<readonly ICompanyUnitAssignment[]>([]);
-
     const [loadingOptions, setLoadingOptions] =
       React.useState<boolean>(true);
-
     const [loadingAssignments, setLoadingAssignments] =
       React.useState<boolean>(false);
-
     const [assignmentsReady, setAssignmentsReady] =
       React.useState<boolean>(false);
-
     const [loadingList, setLoadingList] =
       React.useState<boolean>(false);
-
     const [saving, setSaving] =
       React.useState<boolean>(false);
-
     const [isDirty, setIsDirty] =
       React.useState<boolean>(false);
-
     const [reloadListKey, setReloadListKey] =
       React.useState<number>(0);
-
     const [error, setError] =
       React.useState<string>('');
-
     const [listError, setListError] =
       React.useState<string>('');
-
     const [message, setMessage] =
       React.useState<string>('');
-
     // Load App Users and Unit Master.
     React.useEffect(() => {
       let active = true;
-
       const loadOptions = async (): Promise<void> => {
         setLoadingOptions(true);
         setError('');
-
         try {
           const [userItems, unitItems] =
             await Promise.all([
@@ -162,17 +129,14 @@ export const BusinessPerformanceUnitAccessManager:
               ),
               unitService.getUnits()
             ]);
-
           if (!active) {
             return;
           }
-
           const mappedUsers: IUserRecord[] =
             userItems
               .map(item => {
                 const id =
                   item.Id || item.ID || 0;
-
                 return {
                   id,
                   name:
@@ -188,9 +152,7 @@ export const BusinessPerformanceUnitAccessManager:
                 Number.isSafeInteger(user.id) &&
                 user.id > 0
               );
-
           setUsers(mappedUsers);
-
           setUnitOptions(
             unitItems
               .map(unit => ({
@@ -217,9 +179,7 @@ export const BusinessPerformanceUnitAccessManager:
           }
         }
       };
-
       void loadOptions();
-
       return () => {
         active = false;
       };
@@ -227,27 +187,22 @@ export const BusinessPerformanceUnitAccessManager:
       restClient,
       unitService
     ]);
-
     // Refresh the saved user-unit list.
     React.useEffect(() => {
       let active = true;
-
       const loadList = async (): Promise<void> => {
         setLoadingList(true);
         setListError('');
         setCompanyAssignments([]);
-
         if (!selectedCompanyId) {
           setLoadingList(false);
           return;
         }
-
         try {
           const assignments =
             await unitAccessService.getCompanyAssignments(
               selectedCompanyId
             );
-
           if (active) {
             setCompanyAssignments(assignments);
           }
@@ -263,9 +218,7 @@ export const BusinessPerformanceUnitAccessManager:
           }
         }
       };
-
       void loadList();
-
       return () => {
         active = false;
       };
@@ -274,36 +227,29 @@ export const BusinessPerformanceUnitAccessManager:
       unitAccessService,
       reloadListKey
     ]);
-
     // Load the selected user's currently saved units.
     React.useEffect(() => {
       let active = true;
-
       setSelectedUnitIds([]);
       setIsDirty(false);
       setAssignmentsReady(false);
       setMessage('');
       setError('');
-
       if (!selectedUserId || !selectedCompanyId) {
         setLoadingAssignments(false);
-
         return () => {
           active = false;
         };
       }
-
       const loadAssignedUnits =
         async (): Promise<void> => {
           setLoadingAssignments(true);
-
           try {
             const ids =
               await unitAccessService.getAssignedUnitIds(
                 Number(selectedUserId),
                 selectedCompanyId
               );
-
             if (active) {
               setSelectedUnitIds(
                 ids.map(String)
@@ -322,9 +268,7 @@ export const BusinessPerformanceUnitAccessManager:
             }
           }
         };
-
       void loadAssignedUnits();
-
       return () => {
         active = false;
       };
@@ -333,7 +277,6 @@ export const BusinessPerformanceUnitAccessManager:
       selectedCompanyId,
       unitAccessService
     ]);
-
     const userOptions = React.useMemo<
       readonly ILookupOption[]
     >(
@@ -349,7 +292,6 @@ export const BusinessPerformanceUnitAccessManager:
           })),
       [users]
     );
-
     // Group saved assignments by user.
     const assignmentDisplayRows =
       React.useMemo<
@@ -357,47 +299,37 @@ export const BusinessPerformanceUnitAccessManager:
       >(() => {
         const userById =
           new Map<number, IUserRecord>();
-
         users.forEach(user => {
           userById.set(user.id, user);
         });
-
         const unitNameById =
           new Map<number, string>();
-
         unitOptions.forEach(option => {
           unitNameById.set(
             Number(option.value),
             option.text
           );
         });
-
         const unitsByUser =
           new Map<number, number[]>();
-
         companyAssignments.forEach(assignment => {
           const existing =
             unitsByUser.get(assignment.appUserId) || [];
-
           if (
             existing.indexOf(assignment.unitId) === -1
           ) {
             existing.push(assignment.unitId);
           }
-
           unitsByUser.set(
             assignment.appUserId,
             existing
           );
         });
-
         return Array.from(unitsByUser.keys())
           .map(userId => {
             const user = userById.get(userId);
-
             const unitIds =
               unitsByUser.get(userId) || [];
-
             const names = unitIds
               .map(id =>
                 unitNameById.get(id) ||
@@ -407,7 +339,6 @@ export const BusinessPerformanceUnitAccessManager:
                 (a, b) =>
                   a.localeCompare(b)
               );
-
             return {
               userId,
               name:
@@ -430,7 +361,6 @@ export const BusinessPerformanceUnitAccessManager:
         unitOptions,
         companyAssignments
       ]);
-
     const handleSave = async (): Promise<void> => {
       if (
         !selectedUserId ||
@@ -442,35 +372,28 @@ export const BusinessPerformanceUnitAccessManager:
       ) {
         return;
       }
-
       setSaving(true);
       setError('');
       setMessage('');
-
       try {
         await unitAccessService.saveAssignments({
           appUserId: Number(selectedUserId),
           companyId: selectedCompanyId,
           unitIds: selectedUnitIds.map(Number)
         });
-
         const savedIds =
           await unitAccessService.getAssignedUnitIds(
             Number(selectedUserId),
             selectedCompanyId
           );
-
         setSelectedUnitIds(
           savedIds.map(String)
         );
-
         setIsDirty(false);
-
         // Reload list so changes appear immediately.
         setReloadListKey(
           previous => previous + 1
         );
-
         setMessage(
           'Unit permissions saved successfully.'
         );
@@ -482,7 +405,6 @@ export const BusinessPerformanceUnitAccessManager:
         setSaving(false);
       }
     };
-
     return (
       <div
         style={{
@@ -505,7 +427,6 @@ export const BusinessPerformanceUnitAccessManager:
           <h2 style={{ margin: '0 0 8px' }}>
             Unit Access
           </h2>
-
           <p
             style={{
               color: '#667085',
@@ -516,7 +437,6 @@ export const BusinessPerformanceUnitAccessManager:
             Assign multiple units to an App User
             for the currently selected company.
           </p>
-
           <div
             style={{
               display: 'grid',
@@ -542,7 +462,6 @@ export const BusinessPerformanceUnitAccessManager:
                 );
               }}
             />
-
             <Dropdown
               key={`${selectedCompanyId}:${selectedUserId}`}
               label="Allowed Units"
@@ -566,14 +485,83 @@ export const BusinessPerformanceUnitAccessManager:
                         typeof item === 'string'
                     )
                   : [];
-
                 setSelectedUnitIds(next);
                 setIsDirty(true);
                 setMessage('');
               }}
             />
           </div>
-
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 12
+            }}
+          >
+            <button
+              type="button"
+              disabled={
+                !selectedUserId ||
+                !selectedCompanyId ||
+                !assignmentsReady ||
+                loadingOptions ||
+                loadingAssignments ||
+                saving ||
+                unitOptions.length === 0 ||
+                Boolean(error)
+              }
+              onClick={() => {
+                setSelectedUnitIds(
+                  unitOptions.map(option => String(option.value))
+                );
+                setIsDirty(true);
+                setMessage('');
+              }}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid #6941c6',
+                borderRadius: 6,
+                background: '#fff',
+                color: '#6941c6',
+                cursor: 'pointer'
+              }}
+            >
+              Select All Units
+            </button>
+            <button
+              type="button"
+              disabled={
+                !selectedUserId ||
+                !selectedCompanyId ||
+                !assignmentsReady ||
+                loadingOptions ||
+                loadingAssignments ||
+                saving ||
+                selectedUnitIds.length === 0 ||
+                Boolean(error)
+              }
+              onClick={() => {
+                setSelectedUnitIds([]);
+                setIsDirty(true);
+                setMessage('');
+              }}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid #d0d5dd',
+                borderRadius: 6,
+                background: '#fff',
+                color: '#344054',
+                cursor: 'pointer'
+              }}
+            >
+              Clear All Units
+            </button>
+            <span style={{ fontSize: 13, color: '#667085' }}>
+              {selectedUnitIds.length} of {unitOptions.length} units selected
+            </span>
+          </div>
           {error ? (
             <p
               role="alert"
@@ -582,7 +570,6 @@ export const BusinessPerformanceUnitAccessManager:
               {error}
             </p>
           ) : null}
-
           {message ? (
             <p
               role="status"
@@ -591,7 +578,6 @@ export const BusinessPerformanceUnitAccessManager:
               {message}
             </p>
           ) : null}
-
           <div style={{ marginTop: 20 }}>
             <Button
               label="Save Unit Permissions"
@@ -612,7 +598,6 @@ export const BusinessPerformanceUnitAccessManager:
             />
           </div>
         </section>
-
         {/* Saved user and unit assignment list */}
         <section
           aria-label="Assigned Unit Access List"
@@ -627,7 +612,6 @@ export const BusinessPerformanceUnitAccessManager:
           <h3 style={{ margin: '0 0 6px' }}>
             Assigned Unit Access
           </h3>
-
           <p
             style={{
               color: '#667085',
@@ -638,7 +622,6 @@ export const BusinessPerformanceUnitAccessManager:
             Saved user and unit assignments for
             the selected company.
           </p>
-
           {loadingOptions || loadingList ? (
             <p role="status">
               Loading user-unit assignments...
@@ -671,7 +654,6 @@ export const BusinessPerformanceUnitAccessManager:
                 {assignmentDisplayRows.length}
                 {' '}user(s) with assigned units
               </p>
-
               <div
                 style={{
                   overflowX: 'auto',
@@ -702,21 +684,18 @@ export const BusinessPerformanceUnitAccessManager:
                       >
                         No.
                       </th>
-
                       <th
                         scope="col"
                         style={{ padding: 12 }}
                       >
                         App User
                       </th>
-
                       <th
                         scope="col"
                         style={{ padding: 12 }}
                       >
                         Assigned Units
                       </th>
-
                       <th
                         scope="col"
                         style={{
@@ -728,7 +707,6 @@ export const BusinessPerformanceUnitAccessManager:
                       </th>
                     </tr>
                   </thead>
-
                   <tbody>
                     {assignmentDisplayRows.map(
                       (row, index) => (
@@ -747,7 +725,6 @@ export const BusinessPerformanceUnitAccessManager:
                           >
                             {index + 1}
                           </td>
-
                           <td
                             style={{
                               padding: 12,
@@ -761,7 +738,6 @@ export const BusinessPerformanceUnitAccessManager:
                             >
                               {row.name}
                             </div>
-
                             {row.email ? (
                               <div
                                 style={{
@@ -773,7 +749,6 @@ export const BusinessPerformanceUnitAccessManager:
                                 {row.email}
                               </div>
                             ) : null}
-
                             {!row.isActive ? (
                               <div
                                 style={{
@@ -786,7 +761,6 @@ export const BusinessPerformanceUnitAccessManager:
                               </div>
                             ) : null}
                           </td>
-
                           <td
                             style={{
                               padding: 12,
@@ -813,7 +787,6 @@ export const BusinessPerformanceUnitAccessManager:
                               )}
                             </ul>
                           </td>
-
                           <td
                             style={{
                               padding: 12,

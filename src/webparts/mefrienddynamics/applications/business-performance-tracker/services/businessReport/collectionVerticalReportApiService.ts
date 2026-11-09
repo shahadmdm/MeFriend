@@ -1,17 +1,24 @@
-
 import type { ApiClient } from '../../../../shared/api/apiClient';
-
-import type {
-  IBusinessReportTotal
-} from './businessReportMapper';
 
 export type BusinessReportCriteria = 'Unit' | 'Salesperson';
 
+/** Collection totals returned by the CollectionVerticalReport backend. */
+export interface ICollectionReportTotal {
+  targetType: BusinessReportCriteria;
+  targetCode: string;
+  branchCode: string;
+  receiptCollection: number;
+  paymentCollection: number;
+  entryCount: number;
+}
+
+/** Request contract kept compatible with existing page/service callers. */
 export interface IBusinessReportRequest {
   companyId: string;
   month: number;
   year: number;
   targetType: BusinessReportCriteria;
+  periodicity?: number;
 }
 
 export class CollectionVerticalReportApiService {
@@ -19,9 +26,9 @@ export class CollectionVerticalReportApiService {
     private readonly apiClient: ApiClient
   ) {}
 
-  public async getBusinessReportTotals(
+  public async getCollectionReportTotals(
     request: IBusinessReportRequest
-  ): Promise<readonly IBusinessReportTotal[]> {
+  ): Promise<readonly ICollectionReportTotal[]> {
     const companyId = request.companyId.trim();
 
     if (!companyId) {
@@ -52,23 +59,58 @@ export class CollectionVerticalReportApiService {
       throw new Error('Invalid report criteria.');
     }
 
+    const periodicity = request.periodicity ?? 1;
+    const availableMonths = (request.year - 1) * 12 + request.month;
+
+    if (
+      !Number.isSafeInteger(periodicity) ||
+      periodicity < 1 ||
+      periodicity > availableMonths
+    ) {
+      throw new Error('Invalid report periodicity.');
+    }
+
     const query = [
       `companyId=${encodeURIComponent(companyId)}`,
       `month=${request.month}`,
       `year=${request.year}`,
-      `targetType=${encodeURIComponent(request.targetType)}`
+      `targetType=${encodeURIComponent(request.targetType)}`,
+      `periodicity=${periodicity}`
     ].join('&');
 
     const response = await this.apiClient.get<
-      IBusinessReportTotal[]
-    >(`/api/BusinessReport/totals?${query}`);
+      ICollectionReportTotal[]
+    >(`/api/CollectionVerticalReport/totals?${query}`);
 
-    if (!response.data) {
-      throw new Error(
-        'Business Report API did not return report data.'
-      );
+    if (!Array.isArray(response.data)) {
+      throw new Error('Collection Report API did not return an array.');
+    }
+
+    // Fail rather than silently showing zeros for an unexpected DTO.
+    for (const row of response.data) {
+      if (
+        (row.targetType !== 'Unit' && row.targetType !== 'Salesperson') ||
+        typeof row.targetCode !== 'string' ||
+        typeof row.branchCode !== 'string' ||
+        typeof row.receiptCollection !== 'number' ||
+        !Number.isFinite(row.receiptCollection) ||
+        typeof row.paymentCollection !== 'number' ||
+        !Number.isFinite(row.paymentCollection) ||
+        typeof row.entryCount !== 'number' ||
+        !Number.isSafeInteger(row.entryCount) ||
+        row.entryCount < 0
+      ) {
+        throw new Error('Collection Report API returned invalid totals.');
+      }
     }
 
     return response.data;
+  }
+
+  /** Preserve the existing method name during frontend migration. */
+  public getBusinessReportTotals(
+    request: IBusinessReportRequest
+  ): Promise<readonly ICollectionReportTotal[]> {
+    return this.getCollectionReportTotals(request);
   }
 }

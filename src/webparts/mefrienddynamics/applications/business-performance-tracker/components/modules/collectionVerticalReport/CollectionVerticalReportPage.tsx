@@ -9,7 +9,6 @@ import { InputField } from '../../../../../shared/components/inputs/InputField';
 import { collectionVerticalReportModuleConfig } from '../../../config/modules/collectionVerticalReportModuleConfig';
 import { collectionReportMonthOptions, collectionReportCriteriaOptions, getCollectionReportYearOptions } from '../../../config/modules/collectionReportFilterConfig';
 import type { CollectionReportCriteria } from '../../../config/modules/collectionReportFilterConfig';
-import type { ITargetListItem } from '../../../models/targets';
 import type { IVerticalListItem } from '../../../models/verticals';
 import type { TargetService } from '../../../services/targets/targetService';
 import type { VerticalService } from '../../../services/verticals/verticalService';
@@ -17,8 +16,7 @@ import type { UnitService } from '../../../services/units/unitService';
 import type { BusinessPerformanceUnitAccessService } from '../../../services/access/businessPerformanceUnitAccessService';
 import type { ISalespersonLookupItem } from '../../../../bc-extension/services/salespersons/salespersonService';
 import type { CollectionVerticalReportApiService } from '../../../services/businessReport/collectionVerticalReportApiService';
-import type { IBusinessReportTotal } from '../../../services/businessReport/businessReportMapper';
-import { getBusinessReportCell } from '../../../services/businessReport/businessReportMapper';
+import type { ICollectionReportTotal } from '../../../services/businessReport/collectionVerticalReportApiService';
 import styles from './CollectionVerticalReportPage.module.scss';
 export interface ICollectionVerticalReportPageProps {
     targetService: TargetService;
@@ -56,8 +54,9 @@ interface IReportRow {
     name: string;
     companyId: string;
     targetAmount: number;
-    businessAmount?: number;
-    achievementPercentage?: number;
+    receiptCollection?: number;
+    paymentCollection?: number;
+    receiptPercentage?: number;
 }
 interface IReportRowBuilder {
     key: string;
@@ -65,12 +64,14 @@ interface IReportRowBuilder {
     name: string;
     companyId: string;
     targetAmount: number;
-    businessAmount: number;
-    businessComplete: boolean;
+    // A salesperson can have monthly targets in several permitted units.
+    // Keep the branch set so period totals are counted only once per branch.
+    branchCodes: Set<string>;
 }
 const numberColumnWidth = 44;
 const targetColumnWidth = 116;
-const businessColumnWidth = 122;
+const receiptColumnWidth = 122;
+const paymentColumnWidth = 122;
 const percentageColumnWidth = 72;
 const collectionVerticalName = 'collection';
 const allOptionValue = '__ALL__';
@@ -247,7 +248,7 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
         setLookupOptions([]);
         setLookupError(undefined);
         const verifiedAccess = unitAccess?.companyId === selectedCompanyId &&
-          unitAccess?.appUserId === appUserId ? unitAccess : undefined;
+            unitAccess?.appUserId === appUserId ? unitAccess : undefined;
         setLookupLoading(Boolean(selectedCompanyId) && Boolean(verifiedAccess));
         if (!selectedCompanyId || !verifiedAccess) {
             return () => {
@@ -451,40 +452,37 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                 }
                 uniqueTargets.add(key);
             }
-            const totalsByMonth = new Map<string, readonly IBusinessReportTotal[]>();
-            if (collectionVerticalReportApiService &&
-                criteria === 'Unit' &&
-                matchingTargets.length > 0) {
-                const monthsToFetch = months.filter(periodMonth => matchingTargets.some(target => target.targetMonth ===
-                    periodMonth.month &&
-                    target.targetYear ===
-                        periodMonth.year));
-                // Current API supports one month per request.
-                // Request up to four months concurrently.
-                for (let i = 0; i < monthsToFetch.length; i += 4) {
-                    const batch = monthsToFetch.slice(i, i + 4);
-                    const batchResults = await Promise.all(batch.map(periodMonth => collectionVerticalReportApiService
-                        .getBusinessReportTotals({
+            // Targets are monthly, but the Collection API now aggregates the
+            // complete requested period. Make exactly one API call, not one
+            // call for each month with a configured target.
+            let collectionTotals: readonly ICollectionReportTotal[] | undefined;
+            if (collectionVerticalReportApiService && matchingTargets.length > 0) {
+                collectionTotals = await collectionVerticalReportApiService
+                    .getCollectionReportTotals({
                         companyId: selectedCompanyId,
-                        month: periodMonth.month,
-                        year: periodMonth.year,
-                        targetType: criteria
-                    })));
-                    if (requestId !== reportRequestId.current) {
-                        return;
-                    }
-                    batch.forEach((periodMonth, index) => {
-                        totalsByMonth.set(monthKey(periodMonth.month, periodMonth.year), batchResults[index]);
+                        month: Number(month),
+                        year: Number(year),
+                        targetType: criteria,
+                        periodicity: Number(periodicity)
                     });
+                if (requestId !== reportRequestId.current) {
+                    return;
                 }
             }
-            // Aggregate selected units/salespersons.
+
+            // Group SharePoint monthly targets into one report row per
+            // selected unit or salesperson. Collect the distinct permitted
+            // branches for each row before matching the period's collections.
             const grouped = new Map<string, IReportRowBuilder>();
             for (const target of matchingTargets) {
+                const code = normalizeCode(target.targetCode);
+                const branchCode = criteria === 'Unit'
+                    ? code
+                    : normalizeCode(target.unitCode || '');
                 const groupKey = JSON.stringify([
                     target.companyId,
                     criteria,
-                    normalizeCode(target.targetCode)
+                    code
                 ]);
                 let row = grouped.get(groupKey);
                 if (!row) {
@@ -494,49 +492,81 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                         name: target.targetName,
                         companyId: target.companyId,
                         targetAmount: 0,
-                        businessAmount: 0,
-                        // Salesperson API totals currently span the whole company.
-                        // Do not display them as unit-scoped amounts.
-                        businessComplete: Boolean(collectionVerticalReportApiService && criteria === 'Unit')
+                        branchCodes: new Set<string>()
                     };
                     grouped.set(groupKey, row);
                 }
                 row.targetAmount += target.targetAmount;
-                if (collectionVerticalReportApiService && criteria === 'Unit') {
-                    const monthTotals = totalsByMonth.get(monthKey(target.targetMonth, target.targetYear));
-                    const cell = monthTotals &&
-                        getBusinessReportCell(target, collectionVertical, monthTotals);
-                    if (cell?.businessAmount === undefined ||
-                        !Number.isFinite(cell.businessAmount)) {
-                        row.businessComplete = false;
-                    }
-                    else {
-                        row.businessAmount +=
-                            cell.businessAmount;
-                    }
-                }
+                row.branchCodes.add(branchCode);
             }
+
+            // Backend totals are already combined across periodicity months.
+            // Index by both target and branch to avoid counting the same
+            // salesperson's collection twice when targets exist in multiple
+            // months and to preserve Unit Access at display level.
+            const totalsByTargetAndBranch = new Map<
+                string,
+                { receipt: number; payment: number }
+            >();
+            for (const total of collectionTotals || []) {
+                const code = normalizeCode(total.targetCode);
+                const branchCode = normalizeCode(total.branchCode);
+                if (total.targetType !== criteria ||
+                    !code ||
+                    !branchCode ||
+                    !allowedUnitCodeSet.has(branchCode)) {
+                    continue;
+                }
+                const key = JSON.stringify([code, branchCode]);
+                const existing = totalsByTargetAndBranch.get(key) || {
+                    receipt: 0,
+                    payment: 0
+                };
+                existing.receipt += total.receiptCollection;
+                existing.payment += total.paymentCollection;
+                totalsByTargetAndBranch.set(key, existing);
+            }
+
             const rows: readonly IReportRow[] = Array.from(grouped.values())
                 .map(row => {
-                const businessAmount = row.businessComplete
-                    ? row.businessAmount
-                    : undefined;
-                return {
-                    key: row.key,
-                    code: row.code,
-                    name: row.name,
-                    companyId: row.companyId,
-                    targetAmount: row.targetAmount,
-                    businessAmount,
-                    achievementPercentage: businessAmount !== undefined &&
-                        row.targetAmount > 0
-                        ? (businessAmount /
-                            row.targetAmount) * 100
-                        : undefined
-                };
-            })
-                .sort((first, second) => first.name.localeCompare(second.name, undefined, { sensitivity: 'base' }) ||
-                first.code.localeCompare(second.code));
+                    let receipt = 0;
+                    let payment = 0;
+                    // Use each branch exactly once for the full period.
+                    for (const branch of Array.from(row.branchCodes)) {
+                        const key = JSON.stringify([
+                            normalizeCode(row.code),
+                            branch
+                        ]);
+                        const amount = totalsByTargetAndBranch.get(key);
+                        receipt += amount?.receipt || 0;
+                        payment += amount?.payment || 0;
+                    }
+                    const receiptCollection = collectionTotals === undefined
+                        ? undefined
+                        : receipt;
+                    const paymentCollection = collectionTotals === undefined
+                        ? undefined
+                        : payment;
+                    return {
+                        key: row.key,
+                        code: row.code,
+                        name: row.name,
+                        companyId: row.companyId,
+                        targetAmount: row.targetAmount,
+                        receiptCollection,
+                        paymentCollection,
+                        // This is explicitly a receipts-to-target ratio,
+                        // NOT an unapproved net-collection formula.
+                        receiptPercentage: receiptCollection !== undefined &&
+                            row.targetAmount > 0
+                            ? (receiptCollection / row.targetAmount) * 100
+                            : undefined
+                    };
+                })
+                .sort((first, second) =>
+                    first.name.localeCompare(second.name, undefined, {
+                        sensitivity: 'base'
+                    }) || first.code.localeCompare(second.code));
             if (requestId === reportRequestId.current) {
                 setReportRows(rows);
             }
@@ -574,17 +604,26 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
         ? appliedSelection
         : undefined;
     const overviewTotals = React.useMemo(() => {
-        const target = reportRows.reduce((sum, row) => sum + row.targetAmount, 0);
-        const allBusinessAvailable = reportRows.length > 0 &&
-            reportRows.every(row => row.businessAmount !== undefined);
-        const business = allBusinessAvailable
-            ? reportRows.reduce((sum, row) => sum + (row.businessAmount || 0), 0)
+        const target = reportRows.reduce(
+            (sum, row) => sum + row.targetAmount, 0);
+        const hasCollectionData = reportRows.length > 0 &&
+            reportRows.every(row =>
+                row.receiptCollection !== undefined &&
+                row.paymentCollection !== undefined);
+        const receipt = hasCollectionData
+            ? reportRows.reduce(
+                (sum, row) => sum + (row.receiptCollection || 0), 0)
+            : undefined;
+        const payment = hasCollectionData
+            ? reportRows.reduce(
+                (sum, row) => sum + (row.paymentCollection || 0), 0)
             : undefined;
         return {
             target,
-            business,
-            percentage: business !== undefined && target > 0
-                ? (business / target) * 100
+            receipt,
+            payment,
+            percentage: receipt !== undefined && target > 0
+                ? (receipt / target) * 100
                 : undefined
         };
     }, [reportRows]);
@@ -597,7 +636,8 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
     const tableWidth = numberColumnWidth +
         identityColumnWidth +
         targetColumnWidth +
-        businessColumnWidth +
+        receiptColumnWidth +
+        paymentColumnWidth +
         percentageColumnWidth;
     return (<PageContainer title={collectionVerticalReportModuleConfig.title} description={collectionVerticalReportModuleConfig.description}>
 
@@ -770,65 +810,38 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
               </div>
 
-              {!loading &&
-                !error &&
-                reportRows.length > 0 ? (<div className={styles.overviewGrid} aria-label="Report overview">
-
+              {!loading && !error && reportRows.length > 0 ? (
+                <div className={styles.overviewGrid} aria-label="Report overview">
                   <div className={styles.overviewItem}>
-
-                    <span className={styles.overviewLabel}>
-
-                      Total Targets
-
-                    </span>
-
+                    <span className={styles.overviewLabel}>Total Targets</span>
                     <strong className={styles.overviewValue}>
-
                       <AmountDisplay amount={overviewTotals.target}/>
-
                     </strong>
-
                   </div>
-
                   <div className={styles.overviewItem}>
-
-                    <span className={styles.overviewLabel}>
-
-                      Total Business
-
-                    </span>
-
+                    <span className={styles.overviewLabel}>Total Receipts</span>
                     <strong className={styles.overviewText}>
-
-                      {overviewTotals.business === undefined
-                    ? (<span className={styles.fallback}>
-
-                            —
-
-                          </span>)
-                    : (<AmountDisplay amount={overviewTotals.business}/>)}
-
+                      {overviewTotals.receipt === undefined
+                        ? <span className={styles.fallback}>—</span>
+                        : <AmountDisplay amount={overviewTotals.receipt}/>}
                     </strong>
-
                   </div>
-
                   <div className={styles.overviewItem}>
-
-                    <span className={styles.overviewLabel}>
-
-                      Overall %
-
-                    </span>
-
+                    <span className={styles.overviewLabel}>Total Payments</span>
                     <strong className={styles.overviewText}>
-
+                      {overviewTotals.payment === undefined
+                        ? <span className={styles.fallback}>—</span>
+                        : <AmountDisplay amount={overviewTotals.payment}/>}
+                    </strong>
+                  </div>
+                  <div className={styles.overviewItem}>
+                    <span className={styles.overviewLabel}>Receipts / Target %</span>
+                    <strong className={styles.overviewText}>
                       {renderAchievement(overviewTotals.percentage)}
-
                     </strong>
-
                   </div>
-
-                </div>) : null}
+                </div>
+              ) : null}
 
               <div className={styles.reportNotice} role="note">
 
@@ -840,14 +853,13 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
                 <span>
 
-                  Collection targets come from SharePoint.
-
-                  Business values use the existing
-
-                  invoice-based API metric, not confirmed
-
-                  cash collections. Salesperson Business values and % are
-                    unavailable until the API can return unit-scoped totals.
+                  Collection targets come from SharePoint. Receipts and payments
+                  come from the Business Central advertisingCollections API
+                  for the complete selected period. The percentage is
+                  Receipts / Target, not an approved net-collection formula.
+                  Records without salesperson codes cannot be allocated to a
+                  salesperson. Unit Access is filtered in this page only;
+                  the current demo API does not enforce it server-side.
 
                 </span>
 
@@ -857,7 +869,7 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
                   Loading Collection targets and
 
-                  Business amounts...
+                  receipt/payment amounts...
 
                 </div>) : error ? (<div className={`${styles.reportState} ${styles.reportError}`} role="alert">
 
@@ -918,7 +930,11 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                 }}/>
 
                           <col style={{
-                    width: businessColumnWidth
+                    width: receiptColumnWidth
+                }}/>
+
+                          <col style={{
+                    width: paymentColumnWidth
                 }}/>
 
                           <col style={{
@@ -943,7 +959,7 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
                             </th>
 
-                            <th className={styles.verticalHeader} colSpan={3} scope="colgroup">
+                            <th className={styles.verticalHeader} colSpan={4} scope="colgroup">
 
                               Collection
 
@@ -961,13 +977,19 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
                             <th className={`${styles.metricHeader} ${styles.businessHeading}`} scope="col">
 
-                              Business
+                              Receipts
 
                             </th>
 
                             <th className={styles.metricHeader} scope="col">
 
-                              %
+                              Payments
+
+                            </th>
+
+                            <th className={styles.metricHeader} scope="col">
+
+                              Receipt %
 
                             </th>
 
@@ -1009,19 +1031,23 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
                               <td className={`${styles.metricCell} ${styles.businessCell}`}>
 
-                                {row.businessAmount === undefined
-                        ? (<span className={styles.fallback}>
-
-                                      —
-
-                                    </span>)
-                        : (<AmountDisplay amount={row.businessAmount}/>)}
+                                {row.receiptCollection === undefined
+                        ? (<span className={styles.fallback}>—</span>)
+                        : (<AmountDisplay amount={row.receiptCollection}/>)}
 
                               </td>
 
                               <td className={styles.metricCell}>
 
-                                {renderAchievement(row.achievementPercentage)}
+                                {row.paymentCollection === undefined
+                        ? (<span className={styles.fallback}>—</span>)
+                        : (<AmountDisplay amount={row.paymentCollection}/>)}
+
+                              </td>
+
+                              <td className={styles.metricCell}>
+
+                                {renderAchievement(row.receiptPercentage)}
 
                               </td>
 
@@ -1087,19 +1113,15 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
                               <span className={styles.mobileMetricLabel}>
 
-                                Business
+                                Receipts
 
                               </span>
 
                               <div className={styles.mobileMetricValue}>
 
-                                {row.businessAmount === undefined
-                        ? (<span className={styles.fallback}>
-
-                                      —
-
-                                    </span>)
-                        : (<AmountDisplay amount={row.businessAmount}/>)}
+                                {row.receiptCollection === undefined
+                        ? (<span className={styles.fallback}>—</span>)
+                        : (<AmountDisplay amount={row.receiptCollection}/>)}
 
                               </div>
 
@@ -1109,13 +1131,31 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
 
                               <span className={styles.mobileMetricLabel}>
 
-                                %
+                                Payments
 
                               </span>
 
                               <div className={styles.mobileMetricValue}>
 
-                                {renderAchievement(row.achievementPercentage)}
+                                {row.paymentCollection === undefined
+                        ? (<span className={styles.fallback}>—</span>)
+                        : (<AmountDisplay amount={row.paymentCollection}/>)}
+
+                              </div>
+
+                            </div>
+
+                            <div className={styles.mobileMetric}>
+
+                              <span className={styles.mobileMetricLabel}>
+
+                                Receipt %
+
+                              </span>
+
+                              <div className={styles.mobileMetricValue}>
+
+                                {renderAchievement(row.receiptPercentage)}
 
                               </div>
 

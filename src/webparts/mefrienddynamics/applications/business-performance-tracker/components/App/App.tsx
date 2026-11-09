@@ -111,6 +111,10 @@ import {
 } from '../modules/unitAccess/BusinessPerformanceUnitAccessManager';
 
 import {
+  BusinessPerformanceModulePermissionsPage
+} from '../modules/modulePermissions/BusinessPerformanceModulePermissionsPage';
+
+import {
   resolveRoute,
   buildHashHref
 } from '../../utils/routeUtils';
@@ -176,6 +180,10 @@ const routeAccessRequirements:
     unitAccess: {
       moduleKey: 'bpt.unitAccess',
       action: 'manage'
+    },
+    modulePermissions: {
+      moduleKey: 'bpt.app',
+      action: 'manage'
     }
   };
 
@@ -221,6 +229,10 @@ const getAuthorizedLandingRoute = (
     return 'unitAccess';
   }
 
+  if (access.canManage('bpt.app')) {
+    return 'modulePermissions';
+  }
+
   return undefined;
 };
 
@@ -258,6 +270,10 @@ const getAllowedModuleKeys = (
 
   if (access.canManage('bpt.unitAccess')) {
     allowedModuleKeys.push('unitAccess');
+  }
+
+  if (access.canManage('bpt.app')) {
+    allowedModuleKeys.push('modulePermissions');
   }
 
   return allowedModuleKeys;
@@ -631,6 +647,16 @@ export const App: React.FC<IPortalApplicationProps> = ({
       );
     }
 
+
+    if (route.key === 'modulePermissions') {
+      return (
+        <BusinessPerformanceModulePermissionsPage
+          pageContext={pageContext}
+          spHttpClient={spHttpClient}
+          webAbsoluteUrl={sharePointWebAbsoluteUrl}
+        />
+      );
+    }
 
 
     return (

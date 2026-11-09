@@ -1,14 +1,35 @@
-import type { IAppRouteDefinition } from '../models/common/AppRoute';
 
-import { verticalsModuleConfig } from './modules/verticalsModuleConfig';
-import { unitsModuleConfig } from './modules/unitsModuleConfig';
-import { targetsModuleConfig } from './modules/targetsModuleConfig';
-import { collectionReportModuleConfig } from './modules/collectionReportModuleConfig';
-import { collectionVerticalReportModuleConfig } from './modules/collectionVerticalReportModuleConfig';
+import type {
+  IAppRouteDefinition
+} from '../models/common/AppRoute';
+
+import {
+  verticalsModuleConfig
+} from './modules/verticalsModuleConfig';
+
+import {
+  unitsModuleConfig
+} from './modules/unitsModuleConfig';
+
+import {
+  targetsModuleConfig
+} from './modules/targetsModuleConfig';
+
+import {
+  collectionReportModuleConfig
+} from './modules/collectionReportModuleConfig';
+
+import {
+  collectionVerticalReportModuleConfig
+} from './modules/collectionVerticalReportModuleConfig';
+
 import {
   unitAccessModuleConfig
 } from './modules/unitAccessModuleConfig';
 
+import {
+  modulePermissionsModuleConfig
+} from './modules/modulePermissionsModuleConfig';
 
 export const moduleDefinitions = [
   verticalsModuleConfig,
@@ -16,10 +37,12 @@ export const moduleDefinitions = [
   targetsModuleConfig,
   collectionReportModuleConfig,
   collectionVerticalReportModuleConfig,
-  unitAccessModuleConfig
+  unitAccessModuleConfig,
+  modulePermissionsModuleConfig
 ] as const;
 
-export const routeDefinitions: readonly IAppRouteDefinition[] = [
+export const routeDefinitions:
+  readonly IAppRouteDefinition[] = [
   {
     key: 'verticals',
     path: verticalsModuleConfig.route,
@@ -103,6 +126,13 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     title: unitAccessModuleConfig.title,
     moduleKey: unitAccessModuleConfig.key,
     showInNavigation: true
+  },
+  {
+    key: 'modulePermissions',
+    path: modulePermissionsModuleConfig.route,
+    title: modulePermissionsModuleConfig.title,
+    moduleKey: modulePermissionsModuleConfig.key,
+    showInNavigation: true
   }
 ];
 
@@ -112,5 +142,6 @@ export {
   targetsModuleConfig,
   collectionReportModuleConfig,
   collectionVerticalReportModuleConfig,
-  unitAccessModuleConfig
+  unitAccessModuleConfig,
+  modulePermissionsModuleConfig
 };
