@@ -54,9 +54,8 @@ interface IReportRow {
     name: string;
     companyId: string;
     targetAmount: number;
-    receiptCollection?: number;
-    paymentCollection?: number;
-    receiptPercentage?: number;
+    businessAmount?: number;
+    achievementPercentage?: number;
 }
 interface IReportRowBuilder {
     key: string;
@@ -70,11 +69,10 @@ interface IReportRowBuilder {
 }
 const numberColumnWidth = 44;
 const targetColumnWidth = 116;
-const receiptColumnWidth = 122;
-const paymentColumnWidth = 122;
+const businessColumnWidth = 122;
 const percentageColumnWidth = 72;
 const collectionVerticalName = 'collection';
-const allOptionValue = '__ALL__';
+const allOptionValue = '\_\_ALL\_\_';
 const normalizeCode = (code: string): string => code.trim().toUpperCase();
 // SharePoint assignment IDs must resolve to active Unit Master codes.
 // Missing, inactive, or code-less units never grant report access.
@@ -138,14 +136,10 @@ const isCollectionVertical = (vertical: IVerticalListItem): boolean => vertical.
 const renderAchievement = (percentage: number | undefined): React.ReactNode => percentage !== undefined &&
     Number.isFinite(percentage)
     ? (<span className={styles.achievementValue}>
-
         {percentage.toFixed(1)}%
-
       </span>)
     : (<span className={styles.fallback}>
-
         —
-
       </span>);
 const makeOption = (code: string, name: string): ILookupOption => ({
     key: normalizeCode(code),
@@ -463,13 +457,30 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                         month: Number(month),
                         year: Number(year),
                         targetType: criteria,
-                        periodicity: Number(periodicity)
+                        periodicity: Number(periodicity),
+                        // Filter BC collection lines to branches represented by
+                        // permitted SharePoint targets in the selected period.
+                        branchCodes: Array.from(new Set<string>(
+                            matchingTargets.map(item =>
+                                normalizeCode(criteria === 'Unit'
+                                    ? item.targetCode
+                                    : item.unitCode || '')
+                            ).filter(code => code.length > 0)
+                        )),
+                        ...(criteria === 'Salesperson'
+                            ? {
+                                salespersonCodes: Array.from(new Set<string>(
+                                    matchingTargets.map(item =>
+                                        normalizeCode(item.targetCode)
+                                    ).filter(code => code.length > 0)
+                                ))
+                            }
+                            : {})
                     });
                 if (requestId !== reportRequestId.current) {
                     return;
                 }
             }
-
             // Group SharePoint monthly targets into one report row per
             // selected unit or salesperson. Collect the distinct permitted
             // branches for each row before matching the period's collections.
@@ -499,7 +510,6 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                 row.targetAmount += target.targetAmount;
                 row.branchCodes.add(branchCode);
             }
-
             // Backend totals are already combined across periodicity months.
             // Index by both target and branch to avoid counting the same
             // salesperson's collection twice when targets exist in multiple
@@ -526,7 +536,6 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                 existing.payment += total.paymentCollection;
                 totalsByTargetAndBranch.set(key, existing);
             }
-
             const rows: readonly IReportRow[] = Array.from(grouped.values())
                 .map(row => {
                     let receipt = 0;
@@ -541,25 +550,21 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                         receipt += amount?.receipt || 0;
                         payment += amount?.payment || 0;
                     }
-                    const receiptCollection = collectionTotals === undefined
+                    // Business = receiptCollection + paymentCollection.
+                    // The API already totals both over the selected period.
+                    const businessAmount = collectionTotals === undefined
                         ? undefined
-                        : receipt;
-                    const paymentCollection = collectionTotals === undefined
-                        ? undefined
-                        : payment;
+                        : receipt + payment;
                     return {
                         key: row.key,
                         code: row.code,
                         name: row.name,
                         companyId: row.companyId,
                         targetAmount: row.targetAmount,
-                        receiptCollection,
-                        paymentCollection,
-                        // This is explicitly a receipts-to-target ratio,
-                        // NOT an unapproved net-collection formula.
-                        receiptPercentage: receiptCollection !== undefined &&
+                        businessAmount,
+                        achievementPercentage: businessAmount !== undefined &&
                             row.targetAmount > 0
-                            ? (receiptCollection / row.targetAmount) * 100
+                            ? (businessAmount / row.targetAmount) * 100
                             : undefined
                     };
                 })
@@ -606,24 +611,17 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
     const overviewTotals = React.useMemo(() => {
         const target = reportRows.reduce(
             (sum, row) => sum + row.targetAmount, 0);
-        const hasCollectionData = reportRows.length > 0 &&
-            reportRows.every(row =>
-                row.receiptCollection !== undefined &&
-                row.paymentCollection !== undefined);
-        const receipt = hasCollectionData
+        const hasBusinessData = reportRows.length > 0 &&
+            reportRows.every(row => row.businessAmount !== undefined);
+        const business = hasBusinessData
             ? reportRows.reduce(
-                (sum, row) => sum + (row.receiptCollection || 0), 0)
-            : undefined;
-        const payment = hasCollectionData
-            ? reportRows.reduce(
-                (sum, row) => sum + (row.paymentCollection || 0), 0)
+                (sum, row) => sum + (row.businessAmount || 0), 0)
             : undefined;
         return {
             target,
-            receipt,
-            payment,
-            percentage: receipt !== undefined && target > 0
-                ? (receipt / target) * 100
+            business,
+            percentage: business !== undefined && target > 0
+                ? (business / target) * 100
                 : undefined
         };
     }, [reportRows]);
@@ -636,63 +634,40 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
     const tableWidth = numberColumnWidth +
         identityColumnWidth +
         targetColumnWidth +
-        receiptColumnWidth +
-        paymentColumnWidth +
+        businessColumnWidth +
         percentageColumnWidth;
     return (<PageContainer title={collectionVerticalReportModuleConfig.title} description={collectionVerticalReportModuleConfig.description}>
-
         <div className={styles.reportLayout}>
-
           <section className={styles.filterPanel} aria-label="Report filters">
-
             <div className={styles.filterIntro}>
-
               <div>
-
                 <h3 className={styles.filterTitle}>
-
                   Report filters
-
                 </h3>
-
                 <p className={styles.filterDescription}>
-
                   Select ending Month/Year, number
-
                   of months and units or salespersons.
-
                 </p>
-
               </div>
-
             </div>
-
             {/* First row */}
-
             <div className={`${styles.filterGrid} ${styles.filterGridThreeColumns}`}>
-
               <Dropdown label="Month" value={month} options={collectionReportMonthOptions} required onChange={value => {
             if (typeof value === 'string') {
                 setMonth(value);
             }
         }}/>
-
               <Dropdown label="Year" value={year} options={yearOptions} required onChange={value => {
             if (typeof value === 'string') {
                 setYear(value);
             }
         }}/>
-
             <InputField label="Periodicity (months)" type="number" min={1} max={24} required value={periodicity} placeholder="Enter number of months" onChange={value => {
             setPeriodicity(value);
         }}/>
-
             </div>
-
             {/* Second row */}
-
             <div className={`${styles.filterGrid} ${styles.filterGridThreeColumns} ${styles.filterGridSecondRow}`} style={{ marginTop: 12 }}>
-
               <Dropdown label="Criteria" value={criteria} options={collectionReportCriteriaOptions} required onChange={value => {
             if (value === 'Unit' ||
                 value === 'Salesperson') {
@@ -702,9 +677,7 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                 ]);
             }
         }}/>
-
               {/* Searchable multi-select dropdown */}
-
               <Dropdown key={`${selectedCompanyId}:${criteria}`} label={criteria === 'Unit'
             ? 'Units'
             : 'Salespersons'} values={selectedCodes} options={selectorOptions} multiSelect searchable loading={lookupLoading} placeholder={criteria === 'Unit'
@@ -729,9 +702,7 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
             !unitAccess ||
             !selectedCompanyId ||
             Boolean(unitAccessError)}/>
-
               <div className={styles.submitControl}>
-
                 <Button label="Submit" variant="primary" loading={loading} disabled={loading ||
             lookupLoading ||
             unitAccessLoading ||
@@ -740,11 +711,8 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
             Boolean(unitAccessError)} onClick={() => {
             handleSubmit().catch(() => undefined);
         }}/>
-
               </div>
-
             </div>
-
             {unitAccessLoading ? (<div className={styles.reportNotice} role="status">
                 Verifying your assigned units...
               </div>) : unitAccessError ? (<div className={styles.reportNotice} role="alert">
@@ -753,63 +721,34 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                 Collection Report restricted to {unitAccess.unitCodes.length}{' '}
                 assigned unit(s): {unitAccess.unitCodes.join(', ')}.
               </div>) : null}
-
             {lookupError ? (<div className={styles.reportNotice} role="status">
-
                 {lookupError}
-
               </div>) : null}
-
           </section>
-
           {visibleSelection ? (<section className={styles.reportView} aria-label="Collection report results">
-
               <div className={styles.reportHeader}>
-
                 <div>
-
                   <p className={styles.reportEyebrow}>
-
                     PERFORMANCE OVERVIEW
-
                   </p>
-
                   <h3 className={styles.reportTitle}>
-
                     {visibleSelection.criteria}
-
                     {' '}Collection Report
-
                   </h3>
-
                   <p className={styles.reportPeriod}>
-
                     {visibleSelection.selectedName}
-
                     {' · '}
-
                     {visibleSelection.periodicity}
-
                     {' '}month(s), ending{' '}
-
                     {getMonthName(Number(visibleSelection.month))}
-
                     {' '}
-
                     {visibleSelection.year}
-
                   </p>
-
                 </div>
-
                 <div className={styles.periodBadge}>
-
                   {visibleSelection.periodLabel}
-
                 </div>
-
               </div>
-
               {!loading && !error && reportRows.length > 0 ? (
                 <div className={styles.overviewGrid} aria-label="Report overview">
                   <div className={styles.overviewItem}>
@@ -819,385 +758,185 @@ export const CollectionVerticalReportPage: React.FC<ICollectionVerticalReportPag
                     </strong>
                   </div>
                   <div className={styles.overviewItem}>
-                    <span className={styles.overviewLabel}>Total Receipts</span>
+                    <span className={styles.overviewLabel}>Total Collection</span>
                     <strong className={styles.overviewText}>
-                      {overviewTotals.receipt === undefined
+                      {overviewTotals.business === undefined
                         ? <span className={styles.fallback}>—</span>
-                        : <AmountDisplay amount={overviewTotals.receipt}/>}
+                        : <AmountDisplay amount={overviewTotals.business}/>}
                     </strong>
                   </div>
                   <div className={styles.overviewItem}>
-                    <span className={styles.overviewLabel}>Total Payments</span>
-                    <strong className={styles.overviewText}>
-                      {overviewTotals.payment === undefined
-                        ? <span className={styles.fallback}>—</span>
-                        : <AmountDisplay amount={overviewTotals.payment}/>}
-                    </strong>
-                  </div>
-                  <div className={styles.overviewItem}>
-                    <span className={styles.overviewLabel}>Receipts / Target %</span>
+                    <span className={styles.overviewLabel}>Overall %</span>
                     <strong className={styles.overviewText}>
                       {renderAchievement(overviewTotals.percentage)}
                     </strong>
                   </div>
                 </div>
               ) : null}
-
               <div className={styles.reportNotice} role="note">
-
                 <span className={styles.noticeMarker} aria-hidden="true">
-
                   i
-
                 </span>
-
                 <span>
-
-                  Collection targets come from SharePoint. Receipts and payments
-                  come from the Business Central advertisingCollections API
-                  for the complete selected period. The percentage is
-                  Receipts / Target, not an approved net-collection formula.
+                  Collection targets come from SharePoint. Collection equals
+                  receiptCollection + paymentCollection from the Business
+                  Central advertisingCollections API for the selected period.
+                  Achievement % = Collection / Target x 100.
                   Records without salesperson codes cannot be allocated to a
                   salesperson. Unit Access is filtered in this page only;
                   the current demo API does not enforce it server-side.
-
                 </span>
-
               </div>
-
               {loading ? (<div className={styles.reportState} role="status">
-
                   Loading Collection targets and
-
-                  receipt/payment amounts...
-
+                  Collection amounts...
                 </div>) : error ? (<div className={`${styles.reportState} ${styles.reportError}`} role="alert">
-
                   {error}
-
                 </div>) : reportRows.length === 0 ? (<div className={styles.reportState}>
-
                   No Collection targets found for the
-
                   selected period and filters.
-
                 </div>) : (<>
-
                   <div className={styles.tableShell}>
-
                     <div className={styles.tableToolbar}>
-
                       <div className={styles.tableToolbarTitle}>
-
                         Detailed performance
-
                         <span className={styles.tableRowCount}>
-
                           {reportRows.length} rows
-
                         </span>
-
                       </div>
-
                     </div>
-
                     <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Scroll Collection report table horizontally">
-
                       <table className={styles.reportTable} style={{ minWidth: tableWidth }}>
-
                         <caption className={styles.srOnly}>
-
                           {visibleSelection.criteria}
-
                           {' '}Collection Report for{' '}
-
                           {visibleSelection.periodLabel}
-
                         </caption>
-
                         <colgroup>
-
                           <col style={{
                     width: numberColumnWidth
                 }}/>
-
                           <col style={{
                     width: identityColumnWidth
                 }}/>
-
                           <col style={{
                     width: targetColumnWidth
                 }}/>
-
                           <col style={{
-                    width: receiptColumnWidth
+                    width: businessColumnWidth
                 }}/>
-
-                          <col style={{
-                    width: paymentColumnWidth
-                }}/>
-
                           <col style={{
                     width: percentageColumnWidth
                 }}/>
-
                         </colgroup>
-
                         <thead>
-
                           <tr>
-
-                            <th className={styles.stickyNumber} rowSpan={2} scope="col">
-
+                            <th className={styles.stickyNumber} scope="col">
                               No.
-
                             </th>
-
-                            <th className={styles.stickyIdentity} rowSpan={2} scope="col">
-
+                            <th className={styles.stickyIdentity} scope="col">
                               {visibleSelection.criteria}
-
                             </th>
-
-                            <th className={styles.verticalHeader} colSpan={4} scope="colgroup">
-
-                              Collection
-
-                            </th>
-
-                          </tr>
-
-                          <tr>
-
                             <th className={styles.metricHeader} scope="col">
-
                               Target
-
                             </th>
-
                             <th className={`${styles.metricHeader} ${styles.businessHeading}`} scope="col">
-
-                              Receipts
-
+                              Collection
                             </th>
-
                             <th className={styles.metricHeader} scope="col">
-
-                              Payments
-
+                              %
                             </th>
-
-                            <th className={styles.metricHeader} scope="col">
-
-                              Receipt %
-
-                            </th>
-
                           </tr>
-
                         </thead>
-
                         <tbody>
-
                           {reportRows.map((row, index) => (<tr key={row.key}>
-
                               <td className={styles.stickyNumber}>
-
                                 {index + 1}
-
                               </td>
-
                               <td className={styles.stickyIdentity}>
-
                                 <div className={styles.identityName}>
-
                                   {row.name}
-
                                 </div>
-
                                 <div className={styles.identityCode}>
-
                                   Code: {row.code}
-
                                 </div>
-
                               </td>
-
                               <td className={styles.metricCell}>
-
                                 <AmountDisplay amount={row.targetAmount}/>
-
                               </td>
-
                               <td className={`${styles.metricCell} ${styles.businessCell}`}>
-
-                                {row.receiptCollection === undefined
+                                {row.businessAmount === undefined
                         ? (<span className={styles.fallback}>—</span>)
-                        : (<AmountDisplay amount={row.receiptCollection}/>)}
-
+                        : (<AmountDisplay amount={row.businessAmount}/>)}
                               </td>
-
                               <td className={styles.metricCell}>
-
-                                {row.paymentCollection === undefined
-                        ? (<span className={styles.fallback}>—</span>)
-                        : (<AmountDisplay amount={row.paymentCollection}/>)}
-
+                                {renderAchievement(row.achievementPercentage)}
                               </td>
-
-                              <td className={styles.metricCell}>
-
-                                {renderAchievement(row.receiptPercentage)}
-
-                              </td>
-
                             </tr>))}
-
                         </tbody>
-
                       </table>
-
                     </div>
-
                   </div>
-
                   <div className={styles.mobileList}>
-
                     {reportRows.map((row, index) => (<article className={styles.mobileCard} key={row.key}>
-
                         <div className={styles.mobileCardHeader}>
-
                           <div className={styles.mobileCardName}>
-
                             {row.name}
-
                           </div>
-
                           <div className={styles.mobileCardCode}>
-
                             No. {index + 1}
-
                             {' · '}Code: {row.code}
-
                           </div>
-
                         </div>
-
                         <div className={styles.mobileVertical}>
-
                           <div className={styles.mobileVerticalTitle}>
-
                             Collection
-
                           </div>
-
                           <div className={styles.mobileMetrics}>
-
                             <div className={styles.mobileMetric}>
-
                               <span className={styles.mobileMetricLabel}>
-
                                 Target
-
                               </span>
-
                               <div className={styles.mobileMetricValue}>
-
                                 <AmountDisplay amount={row.targetAmount}/>
-
                               </div>
-
                             </div>
-
                             <div className={styles.mobileMetric}>
-
                               <span className={styles.mobileMetricLabel}>
-
-                                Receipts
-
+                                Collection
                               </span>
-
                               <div className={styles.mobileMetricValue}>
-
-                                {row.receiptCollection === undefined
+                                {row.businessAmount === undefined
                         ? (<span className={styles.fallback}>—</span>)
-                        : (<AmountDisplay amount={row.receiptCollection}/>)}
-
+                        : (<AmountDisplay amount={row.businessAmount}/>)}
                               </div>
-
                             </div>
-
                             <div className={styles.mobileMetric}>
-
                               <span className={styles.mobileMetricLabel}>
-
-                                Payments
-
+                                %
                               </span>
-
                               <div className={styles.mobileMetricValue}>
-
-                                {row.paymentCollection === undefined
-                        ? (<span className={styles.fallback}>—</span>)
-                        : (<AmountDisplay amount={row.paymentCollection}/>)}
-
+                                {renderAchievement(row.achievementPercentage)}
                               </div>
-
                             </div>
-
-                            <div className={styles.mobileMetric}>
-
-                              <span className={styles.mobileMetricLabel}>
-
-                                Receipt %
-
-                              </span>
-
-                              <div className={styles.mobileMetricValue}>
-
-                                {renderAchievement(row.receiptPercentage)}
-
-                              </div>
-
-                            </div>
-
                           </div>
-
                         </div>
-
                       </article>))}
-
                   </div>
-
                 </>)}
-
             </section>) : (<div className={styles.emptyPrompt}>
-
               <span className={styles.emptyPromptSymbol} aria-hidden="true">
-
                 ▤
-
               </span>
-
               <strong>
-
                 Ready to view performance?
-
               </strong>
-
               <span>
-
                 Select Month, Year, Periodicity,
-
                 Criteria and one or more names,
-
                 then Submit.
-
               </span>
-
             </div>)}
-
         </div>
-
       </PageContainer>);
 };

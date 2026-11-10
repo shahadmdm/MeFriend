@@ -31,16 +31,25 @@ import {
   modulePermissionsModuleConfig
 } from './modules/modulePermissionsModuleConfig';
 
+import {
+  settingsModuleConfig
+} from './modules/settingsModuleConfig';
+
+
+// Main sidebar modules only.
+// Settings is accessed through the signed-in user popup.
 export const moduleDefinitions = [
   verticalsModuleConfig,
   unitsModuleConfig,
   targetsModuleConfig,
   collectionReportModuleConfig,
-  collectionVerticalReportModuleConfig,
-  unitAccessModuleConfig,
-  modulePermissionsModuleConfig
+  collectionVerticalReportModuleConfig
 ] as const;
 
+
+// Register all application routes.
+// Settings, Unit Access, and Module Permissions
+// remain accessible without separate sidebar entries.
 export const routeDefinitions:
   readonly IAppRouteDefinition[] = [
   {
@@ -125,14 +134,21 @@ export const routeDefinitions:
     path: unitAccessModuleConfig.route,
     title: unitAccessModuleConfig.title,
     moduleKey: unitAccessModuleConfig.key,
-    showInNavigation: true
+    showInNavigation: false
   },
   {
     key: 'modulePermissions',
     path: modulePermissionsModuleConfig.route,
     title: modulePermissionsModuleConfig.title,
     moduleKey: modulePermissionsModuleConfig.key,
-    showInNavigation: true
+    showInNavigation: false
+  },
+  {
+    key: 'settings',
+    path: settingsModuleConfig.route,
+    title: settingsModuleConfig.title,
+    moduleKey: settingsModuleConfig.key,
+    showInNavigation: false
   }
 ];
 
@@ -143,5 +159,6 @@ export {
   collectionReportModuleConfig,
   collectionVerticalReportModuleConfig,
   unitAccessModuleConfig,
-  modulePermissionsModuleConfig
+  modulePermissionsModuleConfig,
+  settingsModuleConfig
 };

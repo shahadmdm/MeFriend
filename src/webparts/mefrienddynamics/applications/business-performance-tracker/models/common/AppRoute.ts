@@ -11,7 +11,8 @@ export type AppRouteKey =
   | 'collectionReport'
   | 'collectionVerticalReport'
   | 'unitAccess'
-  | 'modulePermissions';
+  | 'modulePermissions'
+  | 'settings';
 
 export interface IAppRouteDefinition {
   key: AppRouteKey;

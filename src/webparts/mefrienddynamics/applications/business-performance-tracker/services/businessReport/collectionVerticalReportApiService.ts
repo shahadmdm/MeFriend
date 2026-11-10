@@ -19,6 +19,9 @@ export interface IBusinessReportRequest {
   year: number;
   targetType: BusinessReportCriteria;
   periodicity?: number;
+  /** Optional filters; multiple codes are sent as repeated query parameters. */
+  salespersonCodes?: readonly string[];
+  branchCodes?: readonly string[];
 }
 
 export class CollectionVerticalReportApiService {
@@ -78,9 +81,41 @@ export class CollectionVerticalReportApiService {
       `periodicity=${periodicity}`
     ].join('&');
 
+    const filters: string[] = [];
+
+    const appendCodeFilters = (
+      fieldName: string,
+      values: readonly string[] | undefined
+    ): void => {
+      if (values === undefined) {
+        return;
+      }
+
+      if (!Array.isArray(values) || values.length === 0) {
+        throw new Error(`Invalid ${fieldName} filters.`);
+      }
+
+      const normalized = values.map(code =>
+        typeof code === 'string' ? code.trim().toUpperCase() : ''
+      );
+
+      if (normalized.some(code => !code || code.length > 100)) {
+        throw new Error(`Invalid ${fieldName} filter code.`);
+      }
+
+      Array.from(new Set<string>(normalized)).forEach(code => {
+        filters.push(`${fieldName}=${encodeURIComponent(code)}`);
+      });
+    };
+
+    appendCodeFilters('salespersonCode', request.salespersonCodes);
+    appendCodeFilters('branchCode', request.branchCodes);
+
+    const fullQuery = [query, ...filters].join('&');
+
     const response = await this.apiClient.get<
       ICollectionReportTotal[]
-    >(`/api/CollectionVerticalReport/totals?${query}`);
+    >(`/api/CollectionVerticalReport/totals?${fullQuery}`);
 
     if (!Array.isArray(response.data)) {
       throw new Error('Collection Report API did not return an array.');

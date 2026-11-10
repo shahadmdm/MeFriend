@@ -20,6 +20,8 @@ interface IProps {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
   webAbsoluteUrl: string;
+  /** Render within the Settings panel without another PageContainer. */
+  embedded?: boolean;
 }
 
 interface IModulePermissionRow extends IModulePermissionAssignment {
@@ -64,7 +66,8 @@ const areEqual = (
 export const BusinessPerformanceModulePermissionsPage: React.FC<IProps> = ({
   pageContext,
   spHttpClient,
-  webAbsoluteUrl
+  webAbsoluteUrl,
+  embedded = false
 }) => {
   const adminService = React.useMemo(
     () => new BusinessPerformancePermissionAdminService({
@@ -232,12 +235,8 @@ export const BusinessPerformanceModulePermissionsPage: React.FC<IProps> = ({
   const selectedId = Number(selectedUserId);
   const busy = loadingUsers || loadingPermissions || saving;
 
-  return (
-    <PageContainer
-      title="Module Permissions"
-      description="Manage per-user access to Business Performance Tracker modules."
-    >
-      <div style={{ background: '#fff', border: '1px solid #e4e7ec', padding: 20, borderRadius: 12 }}>
+  const content = (
+    <div style={{ background: '#fff', border: '1px solid #e4e7ec', padding: 20, borderRadius: 12 }}>
         <div style={{ maxWidth: 580 }}>
           <Dropdown
             label="App User"
@@ -322,7 +321,19 @@ export const BusinessPerformanceModulePermissionsPage: React.FC<IProps> = ({
             </div>
           </>
         ) : null}
-      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <PageContainer
+      title="Module Permissions"
+      description="Manage per-user access to Business Performance Tracker modules."
+    >
+      {content}
     </PageContainer>
   );
 };

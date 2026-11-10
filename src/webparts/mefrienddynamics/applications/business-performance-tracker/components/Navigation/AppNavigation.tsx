@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Icon } from '@fluentui/react';
 
@@ -23,13 +22,8 @@ export interface IAppNavigationProps {
   onNavigate: (path: string) => void;
 
   /**
-   * Module keys that the signed-in user
-   * is permitted to view.
-   *
-   * Undefined preserves existing behavior
-   * until AppLayout and App are connected.
-   *
-   * An empty array hides all modules.
+   * Module keys explicitly permitted for the current user.
+   * Undefined retains the established behavior; [] hides all modules.
    */
   allowedModuleKeys?: readonly string[];
 }
@@ -37,7 +31,8 @@ export interface IAppNavigationProps {
 const moduleIconNames: Readonly<Record<string, string>> = {
   verticals: 'BranchMerge',
   units: 'CityNext',
-  targets: 'Bullseye'
+  targets: 'Bullseye',
+  settings: 'Settings'
 };
 
 export const AppNavigation: React.FC<IAppNavigationProps> = ({
@@ -52,18 +47,11 @@ export const AppNavigation: React.FC<IAppNavigationProps> = ({
         return false;
       }
 
-      // Preserve existing navigation behavior
-      // until permissions are supplied.
       if (allowedModuleKeys === undefined) {
         return true;
       }
 
-      // Display only modules explicitly allowed.
-      // indexOf is compatible with this project's
-      // TypeScript library configuration.
-      return (
-        allowedModuleKeys.indexOf(moduleItem.key) !== -1
-      );
+      return allowedModuleKeys.indexOf(moduleItem.key) !== -1;
     })
     .slice()
     .sort(
@@ -85,9 +73,13 @@ export const AppNavigation: React.FC<IAppNavigationProps> = ({
       aria-label="Business Performance Tracker modules"
     >
       {navigationModules.map(moduleItem => {
-        const isActive = activeRoute
-          ? moduleItem.key === activeRoute.moduleKey
-          : false;
+        // Keep Settings highlighted while the Module Permissions child page is open.
+        const isActive =
+          (activeRoute
+            ? moduleItem.key === activeRoute.moduleKey
+            : false) ||
+          (moduleItem.key === 'settings' &&
+            activeRouteKey === 'modulePermissions');
 
         return (
           <a
@@ -98,14 +90,8 @@ export const AppNavigation: React.FC<IAppNavigationProps> = ({
                 : styles.navItem
             }
             href={buildHashHref(moduleItem.route)}
-            aria-current={
-              isActive ? 'page' : undefined
-            }
-            title={
-              isCollapsed
-                ? moduleItem.title
-                : undefined
-            }
+            aria-current={isActive ? 'page' : undefined}
+            title={isCollapsed ? moduleItem.title : undefined}
             onClick={event => {
               event.preventDefault();
               onNavigate(moduleItem.route);
@@ -114,12 +100,10 @@ export const AppNavigation: React.FC<IAppNavigationProps> = ({
             <Icon
               className={styles.navIcon}
               iconName={
-                moduleIconNames[moduleItem.key] ||
-                moduleItem.icon
+                moduleIconNames[moduleItem.key] || moduleItem.icon
               }
               aria-hidden="true"
             />
-
             <span className={styles.navLabel}>
               {moduleItem.title}
             </span>
