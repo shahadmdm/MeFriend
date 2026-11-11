@@ -1,4 +1,3 @@
-
 import type { ApiClient } from '../../../../shared/api/apiClient';
 
 import type {
@@ -12,6 +11,8 @@ export interface IBusinessReportRequest {
   month: number;
   year: number;
   targetType: BusinessReportCriteria;
+  periodicity?: number;
+  groupByBranch?: boolean;
 }
 
 export class BusinessReportApiService {
@@ -23,6 +24,7 @@ export class BusinessReportApiService {
     request: IBusinessReportRequest
   ): Promise<readonly IBusinessReportTotal[]> {
     const companyId = request.companyId.trim();
+    const periodicity = request.periodicity ?? 1;
 
     if (!companyId) {
       throw new Error('Company ID is required.');
@@ -52,16 +54,34 @@ export class BusinessReportApiService {
       throw new Error('Invalid report criteria.');
     }
 
-    const query = [
-      `companyId=${encodeURIComponent(companyId)}`,
-      `month=${request.month}`,
-      `year=${request.year}`,
-      `targetType=${encodeURIComponent(request.targetType)}`
-    ].join('&');
+    if (
+      !Number.isSafeInteger(periodicity) ||
+      periodicity < 1
+    ) {
+      throw new Error(
+        'Periodicity must be a positive whole number.'
+      );
+    }
+
+    const selectedMonthIndex =
+      (request.year - 1) * 12 + request.month - 1;
+
+    if (periodicity - 1 > selectedMonthIndex) {
+      throw new Error(
+        'The selected reporting period starts before year 1.'
+      );
+    }
 
     const response = await this.apiClient.get<
       IBusinessReportTotal[]
-    >(`/api/BusinessReport/totals?${query}`);
+    >('/api/BusinessReport/totals', {
+      companyId,
+      month: request.month,
+      year: request.year,
+      targetType: request.targetType,
+      periodicity,
+      groupByBranch: request.groupByBranch === true
+    });
 
     if (!response.data) {
       throw new Error(

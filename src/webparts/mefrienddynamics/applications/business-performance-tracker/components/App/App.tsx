@@ -87,6 +87,10 @@ import {
 } from '../../services/units/unitService';
 
 import {
+  BusinessPerformanceUnitAccessService
+} from '../../services/access/businessPerformanceUnitAccessService';
+
+import {
   TargetService
 } from '../../services/targets/targetService';
 
@@ -271,6 +275,16 @@ export const App: React.FC<IPortalApplicationProps> = ({
         webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
     [pageContext, spHttpClient]
+  );
+
+  const unitAccessService = React.useMemo(
+  () =>
+    new BusinessPerformanceUnitAccessService({
+      pageContext,
+      spHttpClient,
+      webAbsoluteUrl: sharePointWebAbsoluteUrl
+    }),
+  [pageContext, spHttpClient]
   );
 
   const targetSalespersonLookupService = React.useMemo(
@@ -515,12 +529,16 @@ export const App: React.FC<IPortalApplicationProps> = ({
 
     if (route.key === 'collectionReport') {
       return (
-        <CollectionReportPage
-          targetService={targetService}
-          verticalService={verticalService}
-          businessReportApiService={businessReportApiService}
-          selectedCompanyId={selectedCompanyId}
-        />
+      <CollectionReportPage
+        targetService={targetService}
+        verticalService={verticalService}
+        unitService={unitService}
+        unitAccessService={unitAccessService}
+        appUserId={access.appUserId}
+        loadSalespersons={loadTargetSalespersons}
+        businessReportApiService={businessReportApiService}
+        selectedCompanyId={selectedCompanyId}
+      />
       );
     }
 

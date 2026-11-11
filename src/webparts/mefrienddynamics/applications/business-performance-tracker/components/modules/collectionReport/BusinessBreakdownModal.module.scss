@@ -1,0 +1,112 @@
+
+.breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.amountRow {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 15px 0;
+
+  &:first-child {
+    padding-top: 4px;
+  }
+
+  &:not(:last-child) {
+    border-bottom: 1px solid #eef1f5;
+  }
+}
+
+.amountDetails {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.amountLabel {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.amountDescription {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.amountValue {
+  color: #0f172a;
+  flex: 0 1 auto;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.creditAmount {
+  color: #b45309;
+}
+
+.finalRow {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  margin-top: 16px;
+  padding: 16px;
+
+  &:first-child {
+    padding-top: 16px;
+  }
+}
+
+.finalLabel {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.finalAmount {
+  color: #21006d;
+  flex: 0 1 auto;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 479px) {
+  .amountRow {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .amountDetails {
+    flex-basis: 45%;
+  }
+
+  .amountValue,
+  .finalAmount {
+    flex-basis: 55%;
+    font-size: 13px;
+  }
+
+  .finalRow {
+    padding: 12px;
+  }
+}
