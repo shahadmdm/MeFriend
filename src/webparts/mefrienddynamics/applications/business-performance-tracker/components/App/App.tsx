@@ -1,91 +1,75 @@
 import * as React from 'react';
-
 import type {
   IPortalApplicationProps
 } from '../../../../shared/models/IPortalApplicationProps';
-
 import {
   ErrorBoundary
 } from '../../../../shared/components/errorState/ErrorBoundary';
-
 import {
   AccessDenied
 } from '../../../../shared/components/errorState/AccessDenied';
-
 import {
   ToastProvider
 } from '../../../../shared/components/toast/ToastProvider';
-
 import {
   BusinessPerformanceAuthorizationGate
 } from '../Access/BusinessPerformanceAuthorizationGate';
-
 import {
   BusinessPerformanceCompanyAccessGate
 } from '../CompanySelector/BusinessPerformanceCompanyAccessGate';
-
 import {
   BusinessPerformancePermissionService
 } from '../../services/access/businessPerformancePermissionService';
-
 import {
   BusinessPerformanceCompanyAccessService
 } from '../../services/access/businessPerformanceCompanyAccessService';
-
 import type {
   IUseBusinessPerformanceAccessResult
 } from '../../hooks/useBusinessPerformanceAccess';
-
 import type {
   BusinessPerformancePermissionModuleKey
 } from '../../config/businessPerformanceAccessConfig';
-
 import type {
   AppRouteKey
 } from '../../models/common/AppRoute';
-
 import {
   getBcCompanyLabel
 } from '../../../bc-extension/config/bcCompanies';
-
 import {
   VerticalPage,
   VerticalFormPage
 } from '../modules/verticals';
-
 import {
   UnitPage,
   UnitFormPage
 } from '../modules/units';
-
 import {
   TargetPage,
   TargetFormPage
 } from '../modules/targets';
-
 import {
-  CollectionReportPage
+  CollectionReportPage,
 } from '../modules/collectionReport';
-
+import {
+  CollectionVerticalReportPage,
+} from '../modules/collectionVerticalReport';
 import { ApiClient } from '../../../../shared/api/apiClient';
 import { AuthClient } from '../../../../shared/api/authClient';
-
 import {
   BusinessReportApiService
 } from '../../services/businessReport/businessReportApiService';
-
+import {
+  CollectionVerticalReportApiService
+} from '../../services/businessReport/collectionVerticalReportApiService';
 import {
   AppLayout
 } from '../Layout/AppLayout';
-
 import {
   VerticalService
 } from '../../services/verticals/verticalService';
-
 import {
   UnitService
 } from '../../services/units/unitService';
-
 import {
   BusinessPerformanceUnitAccessService
 } from '../../services/access/businessPerformanceUnitAccessService';
@@ -93,28 +77,29 @@ import {
 import {
   TargetService
 } from '../../services/targets/targetService';
-
 import {
   TargetSalespersonLookupService
 } from '../../services/targets/targetSalespersonLookupService';
 
 import {
+  BusinessPerformanceUnitAccessManager
+} from '../modules/unitAccess/BusinessPerformanceUnitAccessManager';
+import {
+  BusinessPerformanceModulePermissionsPage
+} from '../modules/modulePermissions/BusinessPerformanceModulePermissionsPage';
+import { SettingsPage } from '../modules/settings/SettingsPage';
+import {
   resolveRoute,
   buildHashHref
 } from '../../utils/routeUtils';
-
 import styles from '../../../bc-extension/components/App/App.module.scss';
-
 const sharePointWebAbsoluteUrl =
   'https://madhyamamgroup.sharepoint.com/sites/Me-Friend';
-
 type RouteAction = 'view' | 'create' | 'manage';
-
 interface IRouteAccessRequirement {
   moduleKey: BusinessPerformancePermissionModuleKey;
   action: RouteAction;
 }
-
 const routeAccessRequirements:
   Partial<Record<AppRouteKey, IRouteAccessRequirement>> = {
     verticals: {
@@ -156,9 +141,20 @@ const routeAccessRequirements:
     collectionReport: {
       moduleKey: 'bpt.collectionReport',
       action: 'view'
+    },
+    collectionVerticalReport: {
+      moduleKey: 'bpt.collectionVerticalReport',
+      action: 'view'
+    },
+    unitAccess: {
+      moduleKey: 'bpt.unitAccess',
+      action: 'manage'
+    },
+    modulePermissions: {
+      moduleKey: 'bpt.app',
+      action: 'manage'
     }
   };
-
 const hasRoutePermission = (
   access: IUseBusinessPerformanceAccessResult,
   requirement: IRouteAccessRequirement
@@ -166,36 +162,37 @@ const hasRoutePermission = (
   if (requirement.action === 'create') {
     return access.canCreate(requirement.moduleKey);
   }
-
   if (requirement.action === 'manage') {
     return access.canManage(requirement.moduleKey);
   }
-
   return access.canView(requirement.moduleKey);
 };
-
 const getAuthorizedLandingRoute = (
   access: IUseBusinessPerformanceAccessResult
 ): string | undefined => {
   if (access.canView('bpt.verticals')) {
     return 'verticals';
   }
-
   if (access.canView('bpt.units')) {
     return 'units';
   }
-
   if (access.canView('bpt.targets')) {
     return 'targets';
   }
-
   if (access.canView('bpt.collectionReport')) {
     return 'collectionReport';
   }
-
+  if (access.canView('bpt.collectionVerticalReport')) {
+    return 'collectionVerticalReport';
+  }
+  if (
+    access.canManage('bpt.app') ||
+    access.canManage('bpt.unitAccess')
+  ) {
+    return 'settings';
+  }
   return undefined;
 };
-
 /**
  * Build the permitted sidebar module list from the verified
  * Business Performance Tracker View permissions.
@@ -207,26 +204,31 @@ const getAllowedModuleKeys = (
   access: IUseBusinessPerformanceAccessResult
 ): readonly string[] => {
   const allowedModuleKeys: string[] = [];
-
   if (access.canView('bpt.verticals')) {
     allowedModuleKeys.push('verticals');
   }
-
   if (access.canView('bpt.units')) {
     allowedModuleKeys.push('units');
   }
-
   if (access.canView('bpt.targets')) {
     allowedModuleKeys.push('targets');
   }
-
   if (access.canView('bpt.collectionReport')) {
     allowedModuleKeys.push('collectionReport');
   }
-
+  if (access.canView('bpt.collectionVerticalReport')) {
+    allowedModuleKeys.push('collectionVerticalReport');
+  }
+  // Settings is opened from the signed-in user popup.
+  // Unit Access and Module Permissions are sections inside Settings.
+  if (
+    access.canManage('bpt.app') ||
+    access.canManage('bpt.unitAccess')
+  ) {
+    allowedModuleKeys.push('settings');
+  }
   return allowedModuleKeys;
 };
-
 export const App: React.FC<IPortalApplicationProps> = ({
   aadHttpClientFactory,
   httpClient,
@@ -246,7 +248,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
       }),
     [pageContext, spHttpClient]
   );
-
   const companyAccessService = React.useMemo(
     () =>
       new BusinessPerformanceCompanyAccessService({
@@ -256,7 +257,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
       }),
     [pageContext, spHttpClient]
   );
-
   const verticalService = React.useMemo(
     () =>
       new VerticalService({
@@ -266,7 +266,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
       }),
     [pageContext, spHttpClient]
   );
-
   const unitService = React.useMemo(
     () =>
       new UnitService({
@@ -278,13 +277,13 @@ export const App: React.FC<IPortalApplicationProps> = ({
   );
 
   const unitAccessService = React.useMemo(
-  () =>
-    new BusinessPerformanceUnitAccessService({
-      pageContext,
-      spHttpClient,
-      webAbsoluteUrl: sharePointWebAbsoluteUrl
-    }),
-  [pageContext, spHttpClient]
+    () =>
+      new BusinessPerformanceUnitAccessService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, spHttpClient]
   );
 
   const targetSalespersonLookupService = React.useMemo(
@@ -295,18 +294,15 @@ export const App: React.FC<IPortalApplicationProps> = ({
       }),
     [aadHttpClientFactory, httpClient]
   );
-
   // Explicitly opt in to the temporary localhost Business Report demo.
   // Normal SharePoint users do not attempt calls to their own localhost.
   const businessReportApiService = React.useMemo(() => {
   const debugManifest = new URLSearchParams(
     window.location.search
   ).get('debugManifestsFile') || '';
-
   if (!debugManifest.startsWith('https://localhost:4321/')) {
     return undefined;
   }
-
     const authClient = new AuthClient({
       aadHttpClientFactory,
       httpClient,
@@ -317,10 +313,27 @@ export const App: React.FC<IPortalApplicationProps> = ({
         aadResourceUrl: ''
       }
     });
-
     return new BusinessReportApiService(new ApiClient(authClient));
   }, [aadHttpClientFactory, httpClient]);
-
+  const collectionVerticalReportApiService = React.useMemo(() => {
+  const debugManifest = new URLSearchParams(
+    window.location.search
+  ).get('debugManifestsFile') || '';
+  if (!debugManifest.startsWith('https://localhost:4321/')) {
+    return undefined;
+  }
+    const authClient = new AuthClient({
+      aadHttpClientFactory,
+      httpClient,
+      settings: {
+        baseUrl: 'https://localhost:7263',
+        anonymous: true,
+        useAadHttpClient: false,
+        aadResourceUrl: ''
+      }
+    });
+    return new CollectionVerticalReportApiService(new ApiClient(authClient));
+  }, [aadHttpClientFactory, httpClient]);
   const targetService = React.useMemo(
     () =>
       new TargetService({
@@ -344,7 +357,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
       targetSalespersonLookupService
     ]
   );
-
   const loadTargetSalespersons = React.useCallback(
     (companyId: string, searchText?: string) =>
       targetSalespersonLookupService.getSalespersons(
@@ -353,30 +365,39 @@ export const App: React.FC<IPortalApplicationProps> = ({
       ),
     [targetSalespersonLookupService]
   );
-
   const route = resolveRoute(routePath);
-
   const handleNavigate = React.useCallback(
     (path: string): void => {
       const href = buildHashHref(path);
-
       if (window.location.hash !== href) {
         window.location.hash = href;
       }
     },
     []
   );
-
   React.useEffect(() => {
     onPortalReady?.();
   }, [onPortalReady]);
-
   const renderRoute = (
     selectedCompanyId: string,
     access: IUseBusinessPerformanceAccessResult
   ): React.ReactNode => {
-    const requirement = routeAccessRequirements[route.key];
+    // Settings requires at least one of its section permissions.
+    // Individual pages continue enforcing their own access rules.
+    if (
+      route.key === 'settings' &&
+      !access.canManage('bpt.app') &&
+      !access.canManage('bpt.unitAccess')
+    ) {
+      return (
+        <AccessDenied
+          title="Module Access Denied"
+          message="You do not have permission to access settings."
+        />
+      );
+    }
 
+    const requirement = routeAccessRequirements[route.key];
     if (
       requirement &&
       !hasRoutePermission(access, requirement)
@@ -392,9 +413,7 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     // Vertical Master
-
     if (route.key === 'verticals') {
       return (
         <VerticalPage
@@ -406,7 +425,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     if (route.key === 'verticalCreate') {
       return (
         <VerticalFormPage
@@ -416,17 +434,14 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     if (route.key === 'verticalEdit') {
       const verticalId = Number(route.params.id);
-
       if (
         !Number.isSafeInteger(verticalId) ||
         verticalId <= 0
       ) {
         return <div>Invalid Vertical ID.</div>;
       }
-
       return (
         <VerticalFormPage
           verticalService={verticalService}
@@ -436,10 +451,8 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     // Unit Master
     // Unit Master is global, not company-specific.
-
     if (route.key === 'units') {
       return (
         <UnitPage
@@ -448,7 +461,18 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
+    if (route.key === 'unitAccess') {
+      return (
+        <BusinessPerformanceUnitAccessManager
+          pageContext={pageContext}
+          spHttpClient={spHttpClient}
+          webAbsoluteUrl={sharePointWebAbsoluteUrl}
+          selectedCompanyId={selectedCompanyId}
+          unitService={unitService}
+          unitAccessService={unitAccessService}
+        />
+      );
+    }
     if (route.key === 'unitCreate') {
       return (
         <UnitFormPage
@@ -457,17 +481,14 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     if (route.key === 'unitEdit') {
       const unitId = Number(route.params.id);
-
       if (
         !Number.isSafeInteger(unitId) ||
         unitId <= 0
       ) {
         return <div>Invalid Unit ID.</div>;
       }
-
       return (
         <UnitFormPage
           unitService={unitService}
@@ -476,9 +497,7 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     // Target Master
-
     if (route.key === 'targets') {
       return (
         <TargetPage
@@ -488,7 +507,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     if (route.key === 'targetCreate') {
       return (
         <TargetFormPage
@@ -501,17 +519,14 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     if (route.key === 'targetEdit') {
       const targetId = Number(route.params.id);
-
       if (
         !Number.isSafeInteger(targetId) ||
         targetId <= 0
       ) {
         return <div>Invalid Target ID.</div>;
       }
-
       return (
         <TargetFormPage
           targetService={targetService}
@@ -524,9 +539,7 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     // Collection Report
-
     if (route.key === 'collectionReport') {
       return (
       <CollectionReportPage
@@ -541,14 +554,50 @@ export const App: React.FC<IPortalApplicationProps> = ({
       />
       );
     }
-
+    // Collection Vertical Report
+    if (route.key === 'collectionVerticalReport') {
+      return (
+        <CollectionVerticalReportPage
+          targetService={targetService}
+          verticalService={verticalService}
+          unitService={unitService}
+          unitAccessService={unitAccessService}
+          appUserId={access.appUserId}
+          loadSalespersons={loadTargetSalespersons}
+          collectionVerticalReportApiService={collectionVerticalReportApiService}
+          selectedCompanyId={selectedCompanyId}
+        />
+      );
+    }
+    if (route.key === 'modulePermissions') {
+      return (
+        <BusinessPerformanceModulePermissionsPage
+          pageContext={pageContext}
+          spHttpClient={spHttpClient}
+          webAbsoluteUrl={sharePointWebAbsoluteUrl}
+        />
+      );
+    }
+    if (route.key === 'settings') {
+      return (
+        <SettingsPage
+          pageContext={pageContext}
+          spHttpClient={spHttpClient}
+          webAbsoluteUrl={sharePointWebAbsoluteUrl}
+          selectedCompanyId={selectedCompanyId}
+          unitService={unitService}
+          unitAccessService={unitAccessService}
+          canManageModulePermissions={access.canManage('bpt.app')}
+          canManageUnitAccess={access.canManage('bpt.unitAccess')}
+        />
+      );
+    }
     return (
       <div>
         This module is under development.
       </div>
     );
   };
-
   return (
     <ErrorBoundary>
       <ToastProvider>
@@ -583,11 +632,9 @@ export const App: React.FC<IPortalApplicationProps> = ({
                     onChangeCompany={() => {
                       const landingRoute =
                         getAuthorizedLandingRoute(access);
-
                       if (landingRoute) {
                         handleNavigate(landingRoute);
                       }
-
                       clearCompany();
                     }}
                     routeTransitionKey={

@@ -1,18 +1,57 @@
-import type { IAppRouteDefinition } from '../models/common/AppRoute';
 
-import { verticalsModuleConfig } from './modules/verticalsModuleConfig';
-import { unitsModuleConfig } from './modules/unitsModuleConfig';
-import { targetsModuleConfig } from './modules/targetsModuleConfig';
-import { collectionReportModuleConfig } from './modules/collectionReportModuleConfig';
+import type {
+  IAppRouteDefinition
+} from '../models/common/AppRoute';
 
+import {
+  verticalsModuleConfig
+} from './modules/verticalsModuleConfig';
+
+import {
+  unitsModuleConfig
+} from './modules/unitsModuleConfig';
+
+import {
+  targetsModuleConfig
+} from './modules/targetsModuleConfig';
+
+import {
+  collectionReportModuleConfig
+} from './modules/collectionReportModuleConfig';
+
+import {
+  collectionVerticalReportModuleConfig
+} from './modules/collectionVerticalReportModuleConfig';
+
+import {
+  unitAccessModuleConfig
+} from './modules/unitAccessModuleConfig';
+
+import {
+  modulePermissionsModuleConfig
+} from './modules/modulePermissionsModuleConfig';
+
+import {
+  settingsModuleConfig
+} from './modules/settingsModuleConfig';
+
+
+// Main sidebar modules only.
+// Settings is accessed through the signed-in user popup.
 export const moduleDefinitions = [
   verticalsModuleConfig,
   unitsModuleConfig,
   targetsModuleConfig,
-  collectionReportModuleConfig
+  collectionReportModuleConfig,
+  collectionVerticalReportModuleConfig
 ] as const;
 
-export const routeDefinitions: readonly IAppRouteDefinition[] = [
+
+// Register all application routes.
+// Settings, Unit Access, and Module Permissions
+// remain accessible without separate sidebar entries.
+export const routeDefinitions:
+  readonly IAppRouteDefinition[] = [
   {
     key: 'verticals',
     path: verticalsModuleConfig.route,
@@ -82,6 +121,34 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     title: collectionReportModuleConfig.title,
     moduleKey: collectionReportModuleConfig.key,
     showInNavigation: true
+  },
+  {
+    key: 'collectionVerticalReport',
+    path: collectionVerticalReportModuleConfig.route,
+    title: collectionVerticalReportModuleConfig.title,
+    moduleKey: collectionVerticalReportModuleConfig.key,
+    showInNavigation: true
+  },
+  {
+    key: 'unitAccess',
+    path: unitAccessModuleConfig.route,
+    title: unitAccessModuleConfig.title,
+    moduleKey: unitAccessModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'modulePermissions',
+    path: modulePermissionsModuleConfig.route,
+    title: modulePermissionsModuleConfig.title,
+    moduleKey: modulePermissionsModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'settings',
+    path: settingsModuleConfig.route,
+    title: settingsModuleConfig.title,
+    moduleKey: settingsModuleConfig.key,
+    showInNavigation: false
   }
 ];
 
@@ -89,5 +156,9 @@ export {
   verticalsModuleConfig,
   unitsModuleConfig,
   targetsModuleConfig,
-  collectionReportModuleConfig
+  collectionReportModuleConfig,
+  collectionVerticalReportModuleConfig,
+  unitAccessModuleConfig,
+  modulePermissionsModuleConfig,
+  settingsModuleConfig
 };

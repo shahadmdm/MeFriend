@@ -8,7 +8,11 @@ export type AppRouteKey =
   | 'targets'
   | 'targetCreate'
   | 'targetEdit'
-  | 'collectionReport';
+  | 'collectionReport'
+  | 'collectionVerticalReport'
+  | 'unitAccess'
+  | 'modulePermissions'
+  | 'settings';
 
 export interface IAppRouteDefinition {
   key: AppRouteKey;
