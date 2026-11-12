@@ -16,11 +16,12 @@ export interface IEntityFiltersProps {
   onApply: () => void;
   onClear: () => void;
   loading?: boolean;
+  summary?: React.ReactNode;
 }
 
 const primaryMobileFilterCount = 3;
 
-export const EntityFilters: React.FC<IEntityFiltersProps> = ({ filters, values, onChange, onApply, onClear, loading = false }) => {
+export const EntityFilters: React.FC<IEntityFiltersProps> = ({ filters, values, onChange, onApply, onClear, loading = false, summary }) => {
   const [isMobileMoreOpen, setIsMobileMoreOpen] = React.useState<boolean>(false);
   const mobilePrimaryFilters = filters.slice(0, primaryMobileFilterCount);
   const mobileSecondaryFilters = filters.slice(primaryMobileFilterCount);
@@ -118,6 +119,7 @@ export const EntityFilters: React.FC<IEntityFiltersProps> = ({ filters, values, 
           </div>
         ) : null}
       </div>
+      {summary ? <div className={styles.summary} aria-live="polite">{summary}</div> : null}
       <div className={styles.actions}>
         <Button label="Clear" variant="secondary" disabled={loading} onClick={onClear} />
         <Button label="Apply" variant="primary" loading={loading} onClick={onApply} />

@@ -109,6 +109,51 @@ type InvoiceListApiResponse = IBcPagedResult<IInvoiceApiModel>;
 export class InvoiceService {
   public constructor(private readonly apiClient: ApiClient) {}
 
+  /**
+   * Adds the remaining balance from every matching invoice, following the
+   * cursor until the complete result set has been read. This intentionally
+   * does not use the list page currently visible in the UI.
+   */
+  public async getOutstandingAmountTotal(
+    filters: IInvoiceFilters,
+    currentUser?: IAppUser
+  ): Promise<number> {
+    let total = 0;
+    let pageSize = 100;
+    let continuationToken: string | undefined;
+
+    do {
+      const result = await this.getInvoices(
+        { ...filters, outstandingOnly: true },
+        {
+          pageNumber: 1,
+          pageSize,
+          currentToken: continuationToken,
+          nextToken: undefined,
+          hasNext: false,
+          pageTokens: { 1: continuationToken }
+        },
+        undefined,
+        currentUser
+      );
+
+      result.items.forEach(invoice => {
+        if (typeof invoice.remainingAmount === 'number' && Number.isFinite(invoice.remainingAmount)) {
+          total += invoice.remainingAmount;
+        }
+      });
+
+      if (result.hasNext && !result.nextToken) {
+        throw new Error('Invoice API returned a paged result without a continuation token.');
+      }
+
+      pageSize = result.pageSize || pageSize;
+      continuationToken = result.hasNext ? result.nextToken : undefined;
+    } while (continuationToken);
+
+    return total;
+  }
+
   public async getInvoices(
     filters: IInvoiceFilters = {},
     pagination: ICursorPaginationState,

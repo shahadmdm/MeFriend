@@ -2,7 +2,7 @@ import mefriendLogo from '../../../../../shared/assets/unnamed.png';
 import html2pdf from 'html2pdf.js';
 import type { IInvoiceDetail, IInvoiceLineItem } from '../../../models/invoices';
 import { formatAmount, formatDate } from '../../../../../shared/utilities/formatUtils';
-import { getPrintableLineDescription } from './invoicePrintUtils';
+import { getPrintableInvoiceLines, getPrintableLineDescription } from './invoicePrintUtils';
 
 const companyName = 'MEFRIEND BUSINESS SOLUTIONS LLP';
 const companyAddress = [
@@ -168,8 +168,8 @@ const renderBlankLine = (className: string = 'blankLine'): string => `
     <td></td>
   </tr>`;
 
-const resolvePageModeClass = (invoice: IInvoiceDetail): string => {
-  const lineCount = invoice.lines.length;
+const resolvePageModeClass = (printableLines: readonly IInvoiceLineItem[]): string => {
+  const lineCount = printableLines.length;
 
   if (lineCount > 8) {
     return 'multiPage';
@@ -706,14 +706,17 @@ export const buildInvoicePrintHtml = (
   logoSrc: string = mefriendLogo,
   options: IInvoiceHtmlOptions = {}
 ): string => {
-  const lineRows = invoice.lines.length
-    ? invoice.lines.map(renderLine).join('')
+  // Totals deliberately use the invoice fields below, not the displayed rows.
+  // This keeps the BC total intact when a G/L round-off adjustment is hidden.
+  const printableLines = getPrintableInvoiceLines(invoice.lines);
+  const lineRows = printableLines.length
+    ? printableLines.map(renderLine).join('')
     : renderBlankLine();
-  const blankRows = invoice.lines.length < 2 ? renderBlankLine() : '';
+  const blankRows = printableLines.length < 2 ? renderBlankLine() : '';
   const grossAmount = invoice.subtotal;
   const invoiceDiscountAmount = invoice.discountAmount;
   const subTotal = invoice.totalAmountExcludingTax;
-  const pageModeClass = resolvePageModeClass(invoice);
+  const pageModeClass = resolvePageModeClass(printableLines);
   const autoPrint = options.autoPrint !== false;
   const downloadMode = options.downloadMode === true;
   const showPreviewBar = options.showPreviewBar !== false;
@@ -794,7 +797,11 @@ ${waitForInvoiceAssetsScript()}
           </td>
         </tr>
         <tr class="reference">
-          <td colspan="2"><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salespersonName || invoice.salesperson)}</span></div></td>
+          <td><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salespersonName || invoice.salesperson)}</span></div></td>
+          <td>
+            <div class="bookingLine"><span>Release Order No.</span><span>:</span><span>${escapeHtml(invoice.releaseOrderNumber)}</span></div>
+            <div class="bookingLine"><span>Release Order Date</span><span>:</span><span>${escapeHtml(formatPrintDate(invoice.releaseOrderDate))}</span></div>
+          </td>
         </tr>
       </tbody>
     </table>

@@ -15,6 +15,7 @@ import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
 import { buildInvoiceDetailPath, requireInvoiceNumber } from '../../../utils/invoiceReference';
 import { EntityDashboard } from '../../../../../shared/components/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../../../../shared/components/filters/EntityFilters';
+import { AmountDisplay } from '../../../../../shared/components/amountDisplay/AmountDisplay';
 import { useToast } from '../../../../../shared/components/toast/useToast';
 import {
   downloadInvoicePdf,
@@ -39,6 +40,12 @@ export interface IInvoicePageProps {
 
 interface IInvoiceDocumentAction {
   type: 'download' | 'print';
+}
+
+interface IOutstandingTotalState {
+  amount?: number;
+  error?: string;
+  loading: boolean;
 }
 
 const getListErrorMessage = (error: unknown): string => {
@@ -76,7 +83,9 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
   const [documentAction, setDocumentAction] = React.useState<IInvoiceDocumentAction | undefined>();
+  const [outstandingTotal, setOutstandingTotal] = React.useState<IOutstandingTotalState>({ loading: false });
   const invoiceRequestIdRef = React.useRef<number>(0);
+  const outstandingTotalRequestIdRef = React.useRef<number>(0);
   const documentActionsInProgress = React.useRef<Set<string>>(new Set());
   const itemMasterLookupPromiseRef = React.useRef<Promise<readonly IItemMasterLookupItem[]> | undefined>();
 
@@ -139,6 +148,45 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     setFilterValues(current => ({ ...current, salespersonCode: restrictedSalespersonCode }));
     setAppliedFilterValues(current => ({ ...current, salespersonCode: restrictedSalespersonCode }));
   }, [restrictedSalespersonCode]);
+
+  const appliedInvoiceFilters = React.useMemo(
+    () => toInvoiceFilters(appliedFilterValues),
+    [appliedFilterValues]
+  );
+  const shouldShowOutstandingTotal = Boolean(
+    appliedInvoiceFilters.salespersonCode?.trim() && appliedInvoiceFilters.outstandingOnly === true
+  );
+
+  React.useEffect(() => {
+    const requestId = ++outstandingTotalRequestIdRef.current;
+
+    if (!shouldShowOutstandingTotal) {
+      setOutstandingTotal({ loading: false });
+      return;
+    }
+
+    setOutstandingTotal({ loading: true });
+    invoiceService.getOutstandingAmountTotal(appliedInvoiceFilters, currentUser)
+      .then(amount => {
+        if (requestId === outstandingTotalRequestIdRef.current) {
+          setOutstandingTotal({ amount, loading: false });
+        }
+      })
+      .catch(totalError => {
+        if (requestId === outstandingTotalRequestIdRef.current) {
+          setOutstandingTotal({
+            error: getUserFriendlyError(normalizeError(totalError)),
+            loading: false
+          });
+        }
+      });
+
+    return () => {
+      if (requestId === outstandingTotalRequestIdRef.current) {
+        outstandingTotalRequestIdRef.current += 1;
+      }
+    };
+  }, [appliedInvoiceFilters, currentUser, invoiceService, shouldShowOutstandingTotal]);
 
   const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
@@ -285,6 +333,18 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   );
   const showDocumentActions = isMefriendBusinessCompany;
   const hasUserFilters = hasUserInvoiceFilters(appliedFilterValues, restrictedSalespersonCode);
+  const outstandingTotalSummary = shouldShowOutstandingTotal ? (
+    outstandingTotal.loading ? (
+      <span>Calculating total outstanding...</span>
+    ) : outstandingTotal.error ? (
+      <span role="alert">Unable to calculate total outstanding: {outstandingTotal.error}</span>
+    ) : (
+      <>
+        <span>Total Outstanding</span>
+        <strong><AmountDisplay amount={outstandingTotal.amount || 0} variant="outstanding" /></strong>
+      </>
+    )
+  ) : undefined;
 
   return (
     <EntityDashboard<IInvoiceListItem>
@@ -324,6 +384,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
+      filterSummary={outstandingTotalSummary}
       cursorPagination={pagination}
       onPageChange={changePage}
       sorting={sorting}

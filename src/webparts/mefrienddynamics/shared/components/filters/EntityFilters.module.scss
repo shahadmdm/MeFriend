@@ -59,6 +59,27 @@
   padding-top: 16px;
 }
 
+.summary {
+  align-items: center;
+  background: #f6f2ff;
+  border: 1px solid #ddd6ef;
+  border-radius: 7px;
+  color: #21006d;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 14px;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
+.summary strong {
+  color: #b91c1c;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 767px) {
   .filters {
     gap: 14px;
@@ -119,6 +140,11 @@
   .actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
