@@ -1,5 +1,7 @@
 import type { ApiClient } from '../../../../shared/api/apiClient';
 
+import { apiRoutes } from '../../config/apiConfig';
+
 export type BusinessReportCriteria = 'Unit' | 'Salesperson';
 
 /** Collection totals returned by the CollectionVerticalReport backend. */
@@ -115,7 +117,7 @@ export class CollectionVerticalReportApiService {
 
     const response = await this.apiClient.get<
       ICollectionReportTotal[]
-    >(`/api/CollectionVerticalReport/totals?${fullQuery}`);
+    >(`${apiRoutes.collectionReportTotals}?${fullQuery}`);
 
     if (!Array.isArray(response.data)) {
       throw new Error('Collection Report API did not return an array.');

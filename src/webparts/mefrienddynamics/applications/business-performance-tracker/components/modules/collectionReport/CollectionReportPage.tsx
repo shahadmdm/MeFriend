@@ -4,6 +4,7 @@ import { PageContainer } from '../../../../../shared/components/pageContainer/Pa
 import { Dropdown } from '../../../../../shared/components/dropdowns/Dropdown';
 import { Button } from '../../../../../shared/components/buttons/Button';
 import { AmountDisplay } from '../../../../../shared/components/amountDisplay/AmountDisplay';
+import { platformConfig } from '../../../../../shared/config/platformConfig';
 import { getUserFriendlyError } from '../../../../../shared/api/apiErrorHandler';
 
 import { collectionReportModuleConfig } from '../../../config/modules/collectionReportModuleConfig';
@@ -791,6 +792,74 @@ export const CollectionReportPage:
       [reportVerticals, reportRows]
     );
 
+
+
+    const totalBusinessSummary = React.useMemo<{
+      amount?: number;
+      currencyCode?: string;
+      mixedCurrencies: boolean;
+    }>(() => {
+      if (!businessReportApiService) {
+        return { mixedCurrencies: false };
+      }
+
+      let amount = 0;
+      let hasBusiness = false;
+      const currencies = new Set<string>();
+
+      for (const row of reportRows) {
+        for (const vertical of displayVerticals) {
+          if (row.companyId !== vertical.companyId) {
+            continue;
+          }
+
+          const target = row.targetsByVertical.get(vertical.id);
+
+          if (!target) {
+            continue;
+          }
+
+          const cell = getBusinessReportCell(
+            target,
+            vertical,
+            reportTotals
+          );
+
+          if (cell.businessAmount === undefined) {
+            continue;
+          }
+
+          amount += cell.businessAmount;
+          hasBusiness = true;
+
+          currencies.add(
+            (cell.currencyCode || platformConfig.currencyCode)
+              .trim()
+              .toUpperCase()
+          );
+        }
+      }
+
+      const mixedCurrencies = currencies.size > 1;
+
+      return {
+        amount: hasBusiness && !mixedCurrencies
+          ? amount
+          : undefined,
+        currencyCode: mixedCurrencies
+          ? undefined
+          : Array.from(currencies)[0],
+        mixedCurrencies
+      };
+    }, [
+      reportRows,
+      displayVerticals,
+      reportTotals,
+      businessReportApiService
+    ]);
+
+
+
     // Never show a report generated for the previous company.
     const visibleSelection =
       appliedSelection?.companyId === selectedCompanyId
@@ -1009,12 +1078,22 @@ export const CollectionReportPage:
                     <span className={styles.overviewLabel}>Verticals with targets</span>
                     <strong className={styles.overviewValue}>{displayVerticals.length}</strong>
                   </div>
+
                   <div className={styles.overviewItem}>
-                    <span className={styles.overviewLabel}>Business data</span>
-                    <strong className={styles.overviewText}>
-                      {businessReportApiService ? 'Business Central' : 'Not connected'}
+                    <span className={styles.overviewLabel}>Total Business</span>
+                    <strong className={styles.overviewValue}>
+                      {totalBusinessSummary.mixedCurrencies
+                        ? 'Multiple currencies'
+                        : (
+                          <AmountDisplay
+                            amount={totalBusinessSummary.amount}
+                            currencyCode={totalBusinessSummary.currencyCode}
+                            variant="total"
+                          />
+                        )}
                     </strong>
                   </div>
+
                 </div>
               ) : null}
 

@@ -55,6 +55,7 @@ import {
 } from '../modules/collectionVerticalReport';
 import { ApiClient } from '../../../../shared/api/apiClient';
 import { AuthClient } from '../../../../shared/api/authClient';
+import { appConfig } from '../../config/appConfig';
 import {
   BusinessReportApiService
 } from '../../services/businessReport/businessReportApiService';
@@ -307,10 +308,7 @@ export const App: React.FC<IPortalApplicationProps> = ({
       aadHttpClientFactory,
       httpClient,
       settings: {
-        baseUrl: 'https://localhost:7263',
-        anonymous: true,
-        useAadHttpClient: false,
-        aadResourceUrl: ''
+        ...appConfig.backendApi
       }
     });
     return new BusinessReportApiService(new ApiClient(authClient));
@@ -326,10 +324,7 @@ export const App: React.FC<IPortalApplicationProps> = ({
       aadHttpClientFactory,
       httpClient,
       settings: {
-        baseUrl: 'https://localhost:7263',
-        anonymous: true,
-        useAadHttpClient: false,
-        aadResourceUrl: ''
+        ...appConfig.backendApi
       }
     });
     return new CollectionVerticalReportApiService(new ApiClient(authClient));

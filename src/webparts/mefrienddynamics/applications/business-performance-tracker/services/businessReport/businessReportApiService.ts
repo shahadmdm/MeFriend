@@ -1,4 +1,5 @@
 import type { ApiClient } from '../../../../shared/api/apiClient';
+import { apiRoutes } from '../../config/apiConfig';
 
 import type {
   IBusinessReportTotal
@@ -74,7 +75,7 @@ export class BusinessReportApiService {
 
     const response = await this.apiClient.get<
       IBusinessReportTotal[]
-    >('/api/BusinessReport/totals', {
+      >(apiRoutes.businessReportTotals, {
       companyId,
       month: request.month,
       year: request.year,
