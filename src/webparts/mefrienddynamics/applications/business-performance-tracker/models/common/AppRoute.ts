@@ -12,7 +12,9 @@ export type AppRouteKey =
   | 'collectionVerticalReport'
   | 'unitAccess'
   | 'modulePermissions'
-  | 'settings';
+  | 'settings'
+  | 'invoices'
+  | 'invoiceDetail';
 
 export interface IAppRouteDefinition {
   key: AppRouteKey;
