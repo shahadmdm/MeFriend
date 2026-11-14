@@ -6,7 +6,7 @@ import type { IInvoiceDetail, IInvoiceListItem } from '../../../models/invoices'
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { isMefriendBusinessSolutionsCompany, type BcCompany } from '../../../config/bcCompanies';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
-import type { InvoiceService } from '../../../services/invoices/invoiceService';
+import type { IOutstandingInvoiceReport, InvoiceService } from '../../../services/invoices/invoiceService';
 import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
 import type { CustomerService } from '../../../services/customers/customerService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
@@ -16,6 +16,7 @@ import { buildInvoiceDetailPath, requireInvoiceNumber } from '../../../utils/inv
 import { EntityDashboard } from '../../../../../shared/components/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../../../../shared/components/filters/EntityFilters';
 import { AmountDisplay } from '../../../../../shared/components/amountDisplay/AmountDisplay';
+import { Button } from '../../../../../shared/components/buttons/Button';
 import { useToast } from '../../../../../shared/components/toast/useToast';
 import {
   downloadInvoicePdf,
@@ -26,6 +27,11 @@ import {
 } from './invoicePrintTemplate';
 import { enrichInvoiceLinesForPrint } from './invoicePrintUtils';
 import { hasUserInvoiceFilters, toInvoiceFilters } from './invoiceFilterUtils';
+import {
+  buildOutstandingSalespersonSummaries,
+  exportOutstandingReportToExcel,
+  type IOutstandingSalespersonSummary
+} from './outstandingReportExport';
 
 export interface IInvoicePageProps {
   currentUser?: IAppUser;
@@ -42,8 +48,9 @@ interface IInvoiceDocumentAction {
   type: 'download' | 'print';
 }
 
-interface IOutstandingTotalState {
-  amount?: number;
+interface IOutstandingReportState {
+  report?: IOutstandingInvoiceReport;
+  salespersonSummaries: readonly IOutstandingSalespersonSummary[];
   error?: string;
   loading: boolean;
 }
@@ -83,9 +90,13 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
   const [documentAction, setDocumentAction] = React.useState<IInvoiceDocumentAction | undefined>();
-  const [outstandingTotal, setOutstandingTotal] = React.useState<IOutstandingTotalState>({ loading: false });
+  const [outstandingReport, setOutstandingReport] = React.useState<IOutstandingReportState>({
+    loading: false,
+    salespersonSummaries: []
+  });
+  const [exportingOutstandingReport, setExportingOutstandingReport] = React.useState<boolean>(false);
   const invoiceRequestIdRef = React.useRef<number>(0);
-  const outstandingTotalRequestIdRef = React.useRef<number>(0);
+  const outstandingReportRequestIdRef = React.useRef<number>(0);
   const documentActionsInProgress = React.useRef<Set<string>>(new Set());
   const itemMasterLookupPromiseRef = React.useRef<Promise<readonly IItemMasterLookupItem[]> | undefined>();
 
@@ -153,40 +164,50 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     () => toInvoiceFilters(appliedFilterValues),
     [appliedFilterValues]
   );
-  const shouldShowOutstandingTotal = Boolean(
-    appliedInvoiceFilters.salespersonCode?.trim() && appliedInvoiceFilters.outstandingOnly === true
-  );
+  const shouldShowOutstandingReport = appliedInvoiceFilters.outstandingOnly === true;
 
   React.useEffect(() => {
-    const requestId = ++outstandingTotalRequestIdRef.current;
+    const requestId = ++outstandingReportRequestIdRef.current;
 
-    if (!shouldShowOutstandingTotal) {
-      setOutstandingTotal({ loading: false });
+    if (!shouldShowOutstandingReport) {
+      setOutstandingReport({ loading: false, salespersonSummaries: [] });
       return;
     }
 
-    setOutstandingTotal({ loading: true });
-    invoiceService.getOutstandingAmountTotal(appliedInvoiceFilters, currentUser)
-      .then(amount => {
-        if (requestId === outstandingTotalRequestIdRef.current) {
-          setOutstandingTotal({ amount, loading: false });
+    setOutstandingReport({ loading: true, salespersonSummaries: [] });
+    Promise.all([
+      invoiceService.getOutstandingInvoiceReport(appliedInvoiceFilters, currentUser),
+      salespersonService.getSalespersonLookup().catch(() => ({ items: [] }))
+    ])
+      .then(([report, salespersonLookup]) => {
+        if (requestId === outstandingReportRequestIdRef.current) {
+          const salespersonNames = new Map(
+            salespersonLookup.items.map(item => [item.code.trim().toUpperCase(), item.name.trim()])
+          );
+
+          setOutstandingReport({
+            report,
+            salespersonSummaries: buildOutstandingSalespersonSummaries(report.invoices, salespersonNames),
+            loading: false
+          });
         }
       })
-      .catch(totalError => {
-        if (requestId === outstandingTotalRequestIdRef.current) {
-          setOutstandingTotal({
-            error: getUserFriendlyError(normalizeError(totalError)),
-            loading: false
+      .catch(reportError => {
+        if (requestId === outstandingReportRequestIdRef.current) {
+          setOutstandingReport({
+            error: getUserFriendlyError(normalizeError(reportError)),
+            loading: false,
+            salespersonSummaries: []
           });
         }
       });
 
     return () => {
-      if (requestId === outstandingTotalRequestIdRef.current) {
-        outstandingTotalRequestIdRef.current += 1;
+      if (requestId === outstandingReportRequestIdRef.current) {
+        outstandingReportRequestIdRef.current += 1;
       }
     };
-  }, [appliedInvoiceFilters, currentUser, invoiceService, shouldShowOutstandingTotal]);
+  }, [appliedInvoiceFilters, currentUser, invoiceService, salespersonService, shouldShowOutstandingReport]);
 
   const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
@@ -327,21 +348,57 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     }
   }, [onNavigate, toast]);
 
+  const handleOutstandingReportExport = React.useCallback((): void => {
+    if (!outstandingReport.report || outstandingReport.loading || exportingOutstandingReport) {
+      return;
+    }
+
+    setExportingOutstandingReport(true);
+
+    try {
+      exportOutstandingReportToExcel({
+        filters: appliedInvoiceFilters,
+        invoices: outstandingReport.report.invoices,
+        salespersonSummaries: outstandingReport.salespersonSummaries,
+        totalOutstandingAmount: outstandingReport.report.totalOutstandingAmount
+      });
+      toast.success('Outstanding report download started.', { title: 'Excel export' });
+    } catch (exportError) {
+      toast.error(getUserFriendlyError(normalizeError(exportError)), { title: 'Unable to export outstanding report' });
+    } finally {
+      setExportingOutstandingReport(false);
+    }
+  }, [appliedInvoiceFilters, exportingOutstandingReport, outstandingReport, toast]);
+
   const isMefriendBusinessCompany = isMefriendBusinessSolutionsCompany(selectedCompany);
   const invoiceColumns = (invoicesModuleConfig.tableColumns || []).filter(column =>
     !isMefriendBusinessCompany || (column.key !== 'releaseOrderNumber' && column.key !== 'releaseOrderDate')
   );
   const showDocumentActions = isMefriendBusinessCompany;
   const hasUserFilters = hasUserInvoiceFilters(appliedFilterValues, restrictedSalespersonCode);
-  const outstandingTotalSummary = shouldShowOutstandingTotal ? (
-    outstandingTotal.loading ? (
-      <span>Calculating total outstanding...</span>
-    ) : outstandingTotal.error ? (
-      <span role="alert">Unable to calculate total outstanding: {outstandingTotal.error}</span>
+  const selectedSalespersonCode = appliedInvoiceFilters.salespersonCode?.trim();
+  const outstandingReportSummary = shouldShowOutstandingReport ? (
+    outstandingReport.loading ? (
+      <span>Calculating outstanding report...</span>
+    ) : outstandingReport.error ? (
+      <span role="alert">Unable to calculate outstanding report: {outstandingReport.error}</span>
     ) : (
       <>
-        <span>Total Outstanding</span>
-        <strong><AmountDisplay amount={outstandingTotal.amount || 0} variant="outstanding" /></strong>
+        <div>
+          <span>{selectedSalespersonCode ? 'Salesperson Outstanding' : 'Business Outstanding'}</span>
+          <strong><AmountDisplay amount={outstandingReport.report?.totalOutstandingAmount ?? 0} variant="outstanding" /></strong>
+        </div>
+        <div>
+          {outstandingReport.report?.invoices.length || 0} outstanding invoice(s) across {outstandingReport.salespersonSummaries.length} salesperson(s)
+        </div>
+        <Button
+          label="Export Excel"
+          variant="secondary"
+          size="small"
+          loading={exportingOutstandingReport}
+          disabled={!outstandingReport.report}
+          onClick={handleOutstandingReportExport}
+        />
       </>
     )
   ) : undefined;
@@ -384,7 +441,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
-      filterSummary={outstandingTotalSummary}
+      filterSummary={outstandingReportSummary}
       cursorPagination={pagination}
       onPageChange={changePage}
       sorting={sorting}

@@ -106,6 +106,11 @@ interface IInvoiceApiModel {
 
 type InvoiceListApiResponse = IBcPagedResult<IInvoiceApiModel>;
 
+export interface IOutstandingInvoiceReport {
+  invoices: readonly IInvoiceListItem[];
+  totalOutstandingAmount: number;
+}
+
 export class InvoiceService {
   public constructor(private readonly apiClient: ApiClient) {}
 
@@ -118,9 +123,23 @@ export class InvoiceService {
     filters: IInvoiceFilters,
     currentUser?: IAppUser
   ): Promise<number> {
+    const report = await this.getOutstandingInvoiceReport(filters, currentUser);
+    return report.totalOutstandingAmount;
+  }
+
+  /**
+   * Returns the complete outstanding-invoice result set for the active
+   * Business Central filters. It follows the cursor so reports and exports
+   * are not limited to the currently visible list page.
+   */
+  public async getOutstandingInvoiceReport(
+    filters: IInvoiceFilters,
+    currentUser?: IAppUser
+  ): Promise<IOutstandingInvoiceReport> {
     let total = 0;
     let pageSize = 100;
     let continuationToken: string | undefined;
+    const invoices: IInvoiceListItem[] = [];
 
     do {
       const result = await this.getInvoices(
@@ -138,6 +157,8 @@ export class InvoiceService {
       );
 
       result.items.forEach(invoice => {
+        invoices.push(invoice);
+
         if (typeof invoice.remainingAmount === 'number' && Number.isFinite(invoice.remainingAmount)) {
           total += invoice.remainingAmount;
         }
@@ -151,7 +172,10 @@ export class InvoiceService {
       continuationToken = result.hasNext ? result.nextToken : undefined;
     } while (continuationToken);
 
-    return total;
+    return {
+      invoices,
+      totalOutstandingAmount: total
+    };
   }
 
   public async getInvoices(

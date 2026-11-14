@@ -80,6 +80,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 @media (max-width: 767px) {
   .filters {
     gap: 14px;

@@ -1,4 +1,4 @@
-export interface IRequestLineRemarks {
+  export interface IRequestLineRemarks {
   lineNumber?: string | number;
   itemCode?: string;
   remarks?: string;

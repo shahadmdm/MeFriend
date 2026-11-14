@@ -22,7 +22,8 @@
     "@microsoft/sp-webpart-base": "1.23.0",
     "@microsoft/sp-lodash-subset": "1.23.0",
     "@microsoft/sp-office-ui-fabric-core": "1.23.0",
-    "html2pdf.js": "^0.14.0"
+    "html2pdf.js": "^0.14.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@microsoft/eslint-plugin-spfx": "1.23.0",
