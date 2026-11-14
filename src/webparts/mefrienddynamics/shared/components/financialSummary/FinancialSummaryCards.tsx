@@ -16,18 +16,19 @@ export interface IFinancialSummaryCard {
 export interface IFinancialSummaryCardsProps {
   cards: readonly IFinancialSummaryCard[];
   accented?: boolean;
+  fallback?: string;
 }
 
-export const FinancialSummaryCards: React.FC<IFinancialSummaryCardsProps> = ({ cards }) => (
+export const FinancialSummaryCards: React.FC<IFinancialSummaryCardsProps> = ({ cards, fallback = '-' }) => (
   <div className={styles.cards}>
     {cards.map(card => (
       <section className={styles.card} key={card.key}>
         <span className={styles.label}>{card.label}</span>
         <strong className={styles.value}>
           {card.amount !== undefined ? (
-            <AmountDisplay amount={card.amount} currencyCode={card.currencyCode} variant={(card.type || 'normal') as AmountDisplayVariant} />
+            <AmountDisplay amount={card.amount} currencyCode={card.currencyCode} fallback={fallback} variant={(card.type || 'normal') as AmountDisplayVariant} />
           ) : (
-            card.value || '-'
+            card.value ?? fallback
           )}
         </strong>
       </section>

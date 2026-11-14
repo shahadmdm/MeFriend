@@ -107,9 +107,6 @@ export interface IWorkflowLevel {
   stepName: string;
   approvalMode: MefriendApprovalMode;
   requiredApprovals: number;
-  isFinalLevel: boolean;
   sequence: number;
-  isActive: boolean;
   approverIds: readonly number[];
-  stepIdsByApproverId?: Readonly<Record<number, number>>;
 }

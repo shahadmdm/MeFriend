@@ -24,6 +24,7 @@ import type { IMasterCodeItem, MasterDataListKey } from '../../../models/setting
 import type { AppAccessService } from '../../../services/sharepoint/appAccessService';
 import type { ApprovalWorkflowService } from '../../../services/sharepoint/approvalWorkflowService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
+import { renumberWorkflowLevels } from '../../../services/sharepoint/workflowConfiguration';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import { normalizeSalespersonCode } from '../../../utils/salespersonDataScope';
 import { Button } from '../../../../../shared/components/buttons/Button';
@@ -99,7 +100,7 @@ const newWorkflow = (entityType: MefriendApprovalEntityType): IApprovalWorkflow 
   workflowCode: '',
   entityType,
   version: 1,
-  isActive: false,
+  isActive: true,
   allowRejection: true,
   allowResubmission: true,
   finalAction: 'ApproveOnly'
@@ -111,9 +112,7 @@ const newLevel = (levelNumber: number): IWorkflowLevel => ({
   stepName: `Level ${levelNumber} Approval`,
   approvalMode: 'Any',
   requiredApprovals: 1,
-  isFinalLevel: true,
   sequence: levelNumber,
-  isActive: true,
   approverIds: []
 });
 
@@ -310,12 +309,16 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
       try {
         const result = await salespersonService.getSalespersonLookup(searchText);
-        setSalespersonOptions(result.items.map(item => ({
-          key: item.code,
-          text: item.code,
-          value: normalizeSalespersonCode(item.code),
-          description: item.name
-        })));
+        setSalespersonOptions(result.items.map(item => {
+          const code = normalizeSalespersonCode(item.code);
+
+          return {
+            key: code,
+            text: code,
+            value: code,
+            description: item.name
+          };
+        }));
       } catch (lookupError) {
         setSalespersonOptions([]);
         setSalespersonLookupError(
@@ -625,11 +628,15 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
     try {
       const saved = await approvalWorkflowService.saveWorkflow(workflowForm, workflowLevels);
+      const persistedSteps = await approvalWorkflowService.getWorkflowSteps(saved.id || 0);
+      const persistedLevels = approvalWorkflowService.toLevels(persistedSteps);
       toast.success('Workflow saved.');
       setWorkflowEntityFilter(saved.entityType);
-      setWorkflowDialogOpen(false);
       await loadSettings();
       setSelectedWorkflowId(saved.id);
+      setWorkflowForm(saved);
+      setWorkflowLevels(persistedLevels);
+      setWorkflowDialogOpen(false);
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : 'Unable to save workflow.');
     } finally {
@@ -833,88 +840,176 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     );
   };
 
+  const moveWorkflowLevel = (index: number, direction: -1 | 1): void => {
+    setWorkflowLevels(current => {
+      const targetIndex = index + direction;
+
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+
+      const reordered = current.slice() as IWorkflowLevel[];
+      const target = reordered[targetIndex];
+      reordered[targetIndex] = reordered[index];
+      reordered[index] = target;
+      return renumberWorkflowLevels(reordered);
+    });
+  };
+
+  const removeWorkflowLevel = (localId: string): void => {
+    setWorkflowLevels(current => renumberWorkflowLevels(current.filter(level => level.localId !== localId)));
+  };
+
+  const setLevelApprovalMode = (localId: string, approvalMode: 'Any' | 'All'): void => {
+    setWorkflowLevels(current => current.map(level => level.localId === localId ? {
+      ...level,
+      approvalMode,
+      requiredApprovals: approvalMode === 'All'
+        ? Math.max(1, level.approverIds.filter(approverId => approverId > 0).length)
+        : 1
+    } : level));
+  };
+
+  const setLevelApprover = (localId: string, approverIndex: number, approverId: number): void => {
+    setWorkflowLevels(current => current.map(level => {
+      if (level.localId !== localId || level.approverIds.some((id, index) => index !== approverIndex && id === approverId)) {
+        return level;
+      }
+
+      const approverIds = level.approverIds.map((id, index) => index === approverIndex ? approverId : id);
+      const approverCount = approverIds.filter(id => id > 0).length;
+
+      return {
+        ...level,
+        approverIds,
+        requiredApprovals: level.approvalMode === 'All'
+          ? Math.max(1, approverCount)
+          : Math.min(level.requiredApprovals, Math.max(1, approverCount))
+      };
+    }));
+  };
+
+  const removeLevelApprover = (localId: string, approverIndex: number): void => {
+    setWorkflowLevels(current => current.map(level => {
+      if (level.localId !== localId) {
+        return level;
+      }
+
+      const approverIds = level.approverIds.filter((_id, index) => index !== approverIndex);
+      const approverCount = approverIds.filter(id => id > 0).length;
+
+      return {
+        ...level,
+        approverIds,
+        requiredApprovals: level.approvalMode === 'All'
+          ? Math.max(1, approverCount)
+          : Math.min(level.requiredApprovals, Math.max(1, approverCount))
+      };
+    }));
+  };
+
   const renderWorkflowEditor = (): React.ReactNode => (
     <div className={styles.workflowEditor}>
       <div className={styles.formGrid}>
-        <InputField disabled={!canManageWorkflows} label="Title" onChange={value => setWorkflowForm(current => ({ ...current, title: value }))} required value={workflowForm.title} />
-        <InputField disabled={!canManageWorkflows} label="Workflow Code" onChange={value => setWorkflowForm(current => ({ ...current, workflowCode: value }))} required value={workflowForm.workflowCode} />
+        <InputField disabled={!canManageWorkflows || saving} label="Title" onChange={value => setWorkflowForm(current => ({ ...current, title: value }))} required value={workflowForm.title} />
+        <InputField disabled={!canManageWorkflows || saving} label="Workflow Code" onChange={value => setWorkflowForm(current => ({ ...current, workflowCode: value }))} required value={workflowForm.workflowCode} />
         <Dropdown
-          disabled={!canManageWorkflows || !!workflowForm.id}
+          disabled={!canManageWorkflows || saving || !!workflowForm.id}
           label="Entity Type"
           onChange={value => selectWorkflowEntity(typeof value === 'string' ? value as MefriendApprovalEntityType : workflowForm.entityType)}
           options={entityTypeOptions}
           required
           value={workflowForm.entityType}
         />
-        <InputField disabled={!canManageWorkflows} label="Version" min={1} onChange={value => setWorkflowForm(current => ({ ...current, version: Number(value) || 1 }))} required type="number" value={workflowForm.version} />
         <Dropdown
-          disabled={!canManageWorkflows}
+          disabled={!canManageWorkflows || saving}
           label="Final Action"
           onChange={value => setWorkflowForm(current => ({ ...current, finalAction: typeof value === 'string' ? value as 'PostToBC' | 'ApproveOnly' : current.finalAction }))}
           options={finalActionOptions}
           value={workflowForm.finalAction}
         />
-        {(['isActive', 'allowRejection', 'allowResubmission'] as const).map(flag => (
+        {([['allowRejection', 'Allow rejection'], ['allowResubmission', 'Allow resubmission']] as const).map(([flag, label]) => (
           <label className={styles.toggle} key={flag}>
-            <input checked={workflowForm[flag]} disabled={!canManageWorkflows} onChange={event => {
+            <input checked={workflowForm[flag]} disabled={!canManageWorkflows || saving} onChange={event => {
               const checked = event.currentTarget.checked;
               setWorkflowForm(current => ({ ...current, [flag]: checked }));
             }} type="checkbox" />
-            <span>{flag}</span>
+            <span>{label}</span>
           </label>
         ))}
       </div>
       <div className={styles.levelToolbar}>
         <strong>Approval Levels</strong>
-        <Button disabled={!canManageWorkflows} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add Level" onClick={() => {
+        <Button disabled={!canManageWorkflows || saving} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add Level" onClick={() => {
           const next = workflowLevels.length + 1;
-          setWorkflowLevels(current => current.map(level => ({ ...level, isFinalLevel: false })).concat(newLevel(next)));
+          setWorkflowLevels(current => renumberWorkflowLevels(current.concat(newLevel(next))));
         }} variant="secondary" />
       </div>
       {workflowLevels.map((level, index) => (
-        <div className={level.isFinalLevel ? `${styles.levelCard} ${styles.finalLevel}` : styles.levelCard} key={level.localId}>
+        <div className={index === workflowLevels.length - 1 ? `${styles.levelCard} ${styles.finalLevel}` : styles.levelCard} key={level.localId}>
           <div className={styles.levelHeader}>
-            <strong>Level {level.levelNumber}</strong>
+            <div className={styles.levelTitle}>
+              <strong>Level {level.levelNumber}</strong>
+              {index === workflowLevels.length - 1 ? <span>Final level</span> : null}
+            </div>
             <div className={styles.rowActions}>
-              <button aria-label="Move level up" disabled={!canManageWorkflows || index === 0} onClick={() => setWorkflowLevels(current => current.map((item, itemIndex, all) => itemIndex === index - 1 ? { ...level, levelNumber: itemIndex + 1, sequence: itemIndex + 1 } : itemIndex === index ? { ...all[index - 1], levelNumber: itemIndex + 1, sequence: itemIndex + 1 } : item))} type="button"><Icon iconName="Up" aria-hidden="true" /></button>
-              <button aria-label="Remove level" disabled={!canManageWorkflows} onClick={() => setWorkflowLevels(current => current.filter(item => item.localId !== level.localId).map((item, itemIndex, all) => ({ ...item, levelNumber: itemIndex + 1, sequence: itemIndex + 1, isFinalLevel: itemIndex === all.length - 1 ? item.isFinalLevel || level.isFinalLevel : item.isFinalLevel })))} type="button"><Icon iconName="Delete" aria-hidden="true" /></button>
+              <button aria-label="Move level up" disabled={!canManageWorkflows || saving || index === 0} onClick={() => moveWorkflowLevel(index, -1)} type="button"><Icon iconName="Up" aria-hidden="true" /></button>
+              <button aria-label="Move level down" disabled={!canManageWorkflows || saving || index === workflowLevels.length - 1} onClick={() => moveWorkflowLevel(index, 1)} type="button"><Icon iconName="Down" aria-hidden="true" /></button>
+              <button aria-label="Remove level" disabled={!canManageWorkflows || saving} onClick={() => removeWorkflowLevel(level.localId)} type="button"><Icon iconName="Delete" aria-hidden="true" /></button>
             </div>
           </div>
           <div className={styles.formGrid}>
-            <InputField disabled={!canManageWorkflows} label="Step Name" onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, stepName: value } : item))} value={level.stepName} />
+            <InputField disabled={!canManageWorkflows || saving} label="Step Name" onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, stepName: value } : item))} value={level.stepName} />
             <Dropdown
-              disabled={!canManageWorkflows}
+              disabled={!canManageWorkflows || saving}
               label="Approval Mode"
-              onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approvalMode: typeof value === 'string' ? value as 'Any' | 'All' : item.approvalMode } : item))}
+              onChange={value => typeof value === 'string' && setLevelApprovalMode(level.localId, value as 'Any' | 'All')}
               options={approvalModeOptions}
               value={level.approvalMode}
             />
-            <InputField disabled={!canManageWorkflows} label="Required Approvals" min={1} onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, requiredApprovals: Number(value) || 1 } : item))} type="number" value={level.requiredApprovals} />
-            <label className={styles.toggle}><input checked={level.isFinalLevel} disabled={!canManageWorkflows} onChange={event => {
-              const checked = event.currentTarget.checked;
-              setWorkflowLevels(current => current.map(item => ({ ...item, isFinalLevel: item.localId === level.localId ? checked : false })));
-            }} type="checkbox" /><span>Final level</span></label>
-            <label className={styles.toggle}><input checked={level.isActive} disabled={!canManageWorkflows} onChange={event => {
-              const checked = event.currentTarget.checked;
-              setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, isActive: checked } : item));
-            }} type="checkbox" /><span>Active</span></label>
+            {level.approvalMode === 'Any' && level.approverIds.filter(approverId => approverId > 0).length > 1 ? (
+              <InputField
+                disabled={!canManageWorkflows || saving}
+                label={`Required Approvals (of ${level.approverIds.filter(approverId => approverId > 0).length})`}
+                max={level.approverIds.filter(approverId => approverId > 0).length}
+                min={1}
+                onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? {
+                  ...item,
+                  requiredApprovals: Math.min(
+                    Math.max(Number(value) || 1, 1),
+                    item.approverIds.filter(approverId => approverId > 0).length
+                  )
+                } : item))}
+                type="number"
+                value={level.requiredApprovals}
+              />
+            ) : null}
           </div>
           <div className={styles.approverList}>
             {level.approverIds.map((approverId, approverIndex) => (
-              <div className={styles.approverDropdown} key={`${level.localId}-${approverIndex}`}>
-                <Dropdown
-                  disabled={!canManageWorkflows}
-                  label="Approver"
-                  onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.map((id, idIndex) => idIndex === approverIndex ? (typeof value === 'number' ? value : id) : id) } : item))}
-                  options={activeApproverOptions}
-                  placeholder="Select approver"
-                  searchable
-                  showSelectedDetail
-                  value={approverId || undefined}
-                />
+              <div className={styles.approverRow} key={`${level.localId}-${approverIndex}`}>
+                <div className={styles.approverDropdown}>
+                  <Dropdown
+                    disabled={!canManageWorkflows || saving}
+                    label="Approver"
+                    onChange={value => typeof value === 'number' && setLevelApprover(level.localId, approverIndex, value)}
+                    options={activeApproverOptions.filter(option => option.value === approverId || level.approverIds.indexOf(option.value) === -1)}
+                    placeholder="Select approver"
+                    searchable
+                    showSelectedDetail
+                    value={approverId || undefined}
+                  />
+                </div>
+                <button aria-label={`Remove approver ${approverIndex + 1} from Level ${level.levelNumber}`} className={styles.removeApprover} disabled={!canManageWorkflows || saving} onClick={() => removeLevelApprover(level.localId, approverIndex)} type="button"><Icon iconName="Cancel" aria-hidden="true" /></button>
               </div>
             ))}
-            <Button disabled={!canManageWorkflows} icon={<Icon iconName="AddFriend" aria-hidden="true" />} label="Add Approver" onClick={() => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.concat(0) } : item))} variant="secondary" />
+            <Button
+              disabled={!canManageWorkflows || saving || level.approverIds.indexOf(0) !== -1 || level.approverIds.filter(id => id > 0).length >= activeApproverOptions.length}
+              icon={<Icon iconName="AddFriend" aria-hidden="true" />}
+              label="Add Approver"
+              onClick={() => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.concat(0) } : item))}
+              variant="secondary"
+            />
           </div>
         </div>
       ))}
@@ -935,16 +1030,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
         },
         { key: 'entityType', header: 'Entity Type', fieldName: 'entityType', sortable: false, renderType: 'text', minWidth: 150 },
         { key: 'version', header: 'Version', fieldName: 'version', sortable: false, renderType: 'text', minWidth: 110 },
-        { key: 'finalAction', header: 'Final Action', fieldName: 'finalAction', sortable: false, renderType: 'text', minWidth: 150 },
-        {
-          key: 'status',
-          header: 'Status',
-          fieldName: 'isActive',
-          sortable: false,
-          renderType: 'text',
-          minWidth: 120,
-          customRender: workflow => (workflow.isActive ? 'Active' : 'Inactive')
-        }
+        { key: 'finalAction', header: 'Final Action', fieldName: 'finalAction', sortable: false, renderType: 'text', minWidth: 150 }
       ] as readonly ITableColumn<IApprovalWorkflow>[]}
       emptyMessage={`No workflow configured for ${workflowEntityFilter}.`}
       emptyTitle="No workflow found"
@@ -988,12 +1074,21 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
       title={workflowForm.id ? 'Edit Workflow' : 'New Workflow'}
       subtitle="Configure the single approval flow for this entity."
       size="large"
-      onDismiss={() => setWorkflowDialogOpen(false)}
+      onDismiss={() => {
+        if (!saving) {
+          setWorkflowDialogOpen(false);
+        }
+      }}
       confirmLabel="Save Workflow"
       confirmLoading={saving}
-      confirmDisabled={!canManageWorkflows}
+      confirmDisabled={!canManageWorkflows || saving}
+      cancelDisabled={saving}
       onConfirm={() => saveWorkflow().catch(() => undefined)}
-      onCancel={() => setWorkflowDialogOpen(false)}
+      onCancel={() => {
+        if (!saving) {
+          setWorkflowDialogOpen(false);
+        }
+      }}
     >
       {renderWorkflowEditor()}
     </EntityModal>

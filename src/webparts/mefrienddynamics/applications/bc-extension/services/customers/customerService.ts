@@ -6,102 +6,147 @@ import type {
   ICustomerFilters,
   ICustomerListItem
 } from '../../models/customers';
-import { DEFAULT_SERVER_PAGE_SIZE, type ICursorPaginationState, type IServerPagedResult } from '../../../../shared/models/IServerPagination';
+import { type IBcPagedResult, type ICursorPaginationState } from '../../../../shared/models/IServerPagination';
 import type { ISortState } from '../../../../shared/models/ISortState';
-import { buildServerPageQuery } from '../../../../shared/utilities/serverPagination';
+import { fetchAllBcLookupItems, MAX_BC_LOOKUP_PAGE_SIZE } from '../../../../shared/utilities/bcLookupPagination';
+import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
+import { normalizeMasterDataCode } from '../../utils/masterDataDisplay';
 
 interface ICustomerApiModel {
-  id?: string;
-  number?: string;
-  no?: string;
-  name?: string;
-  name2?: string;
-  customerCode?: string;
-  customerName?: string;
-  branch?: string;
-  department?: string;
-  city?: string;
-  stateCode?: string;
-  countryCode?: string;
-  countryRegionCode?: string;
-  locationCode?: string;
-  status?: string;
-  address?: string;
-  address2?: string;
-  postCode?: string;
-  phoneNumber?: string;
-  panNo?: string;
-  PAN?: string;
-  gstNo?: string;
-  gstRegistrationNo?: string;
-  genPostingGroup?: string;
-  customerPostingGroup?: string;
-  gstCustomerType?: string;
-}
-
-interface ICustomerCreateApiResponse {
-  id?: string;
-  number?: string;
-  name?: string;
-  customerCode?: string;
-  customerName?: string;
-  businessCentralDocumentNumber?: string;
-  rawReference?: string;
-  createdAt?: string;
+  '@odata.etag': string;
+  id: string;
+  number: string;
+  name: string;
+  name2: string;
+  address: string;
+  address2: string;
+  stateCode: string;
+  countryRegionCode: string;
+  city: string;
+  postCode: string;
+  locationCode: string;
+  phoneNumber: string;
+  PAN: string;
+  gstRegistrationNo: string;
+  genPostingGroup: string;
+  customerPostingGroup: string;
+  gstCustomerType: string;
+  createdDateTime: string;
+  modifiedDateTime: string;
 }
 
 export interface ICustomerLookupItem {
-  number?: string;
-  no: string;
+  number: string;
   name: string;
 }
 
-type CustomerListApiResponse = IServerPagedResult<ICustomerApiModel>;
-type CustomerLookupApiResponse = IServerPagedResult<ICustomerLookupItem>;
+type CustomerListApiResponse = IBcPagedResult<ICustomerApiModel>;
+type CustomerLookupApiResponse = IBcPagedResult<ICustomerLookupItem>;
 
 const indiaCountryCode = 'IN';
 const normalizeText = (value: string): string => value.trim();
 const normalizeCode = (value: string): string => value.trim().toUpperCase();
 
 export class CustomerService {
+  private customerLookupPromise?: Promise<IBcPagedResult<ICustomerLookupItem>>;
+
   public constructor(private readonly apiClient: ApiClient) {}
 
   public async getCustomers(
     filters: ICustomerFilters = {},
     pagination: ICursorPaginationState,
     sorting?: ISortState
-  ): Promise<IServerPagedResult<ICustomerListItem>> {
-    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers', buildServerPageQuery({
-      searchText: filters.searchText,
-      branch: filters.branch,
-      department: filters.department,
-      city: filters.city,
-      stateCode: filters.stateCode,
-      status: filters.status
+  ): Promise<IBcPagedResult<ICustomerListItem>> {
+    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers', buildBcPageQuery({
+      search: filters.searchText,
+      filters: {
+        city: filters.city,
+        gstCustomerType: filters.gstCustomerType
+      }
     }, pagination, sorting));
+    const result = response.data;
 
-    return this.mapPagedResult(response.data, pagination.pageSize);
+    return {
+      items: (result?.items || []).map(item => this.mapCustomerApiToUiModel(item)),
+      pageSize: result?.pageSize || pagination.pageSize,
+      hasNext: Boolean(result?.hasNext),
+      nextToken: result?.nextToken
+    };
   }
 
   public async getCustomerLookup(
     searchText?: string,
-    pageSize: number = DEFAULT_SERVER_PAGE_SIZE
-  ): Promise<IServerPagedResult<ICustomerLookupItem>> {
-    const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup', {
-      searchText,
-      pageSize
-    });
-    const result = response.data;
+    pageSize: number = MAX_BC_LOOKUP_PAGE_SIZE
+  ): Promise<IBcPagedResult<ICustomerLookupItem>> {
+    const normalizedSearchText = searchText?.trim();
+
+    if (!normalizedSearchText && pageSize === MAX_BC_LOOKUP_PAGE_SIZE) {
+      if (!this.customerLookupPromise) {
+        this.customerLookupPromise = this.loadCustomerLookup(undefined, pageSize)
+          .catch(error => {
+            this.customerLookupPromise = undefined;
+            throw error;
+          });
+      }
+
+      return this.customerLookupPromise;
+    }
+
+    return this.loadCustomerLookup(normalizedSearchText, pageSize);
+  }
+
+  public async getCustomerNamesByCode(codes: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const requestedCodes = new Set(codes.map(normalizeMasterDataCode).filter(Boolean));
+    if (!requestedCodes.size) {
+      return new Map<string, string>();
+    }
+
+    const lookup = await this.getCustomerLookup();
+    return lookup.items.reduce<Map<string, string>>((namesByCode, item) => {
+      const code = normalizeMasterDataCode(item.number);
+      const name = (item.name || '').trim();
+
+      if (requestedCodes.has(code) && name && !namesByCode.has(code)) {
+        namesByCode.set(code, name);
+      }
+
+      return namesByCode;
+    }, new Map<string, string>());
+  }
+
+  public async getCustomerGstRegistrationNumber(customerNumber?: string): Promise<string> {
+    const normalizedCustomerNumber = normalizeMasterDataCode(customerNumber);
+    if (!normalizedCustomerNumber) {
+      return '';
+    }
+
+    const customers = await fetchAllBcLookupItems<ICustomerApiModel>(async query => {
+      const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers', query);
+      return response.data;
+    }, normalizedCustomerNumber);
+    const customer = customers.find(item =>
+      normalizeMasterDataCode(item.number) === normalizedCustomerNumber
+    );
+
+    return customer?.gstRegistrationNo?.trim() || '';
+  }
+
+  private async loadCustomerLookup(
+    searchText?: string,
+    pageSize: number = MAX_BC_LOOKUP_PAGE_SIZE
+  ): Promise<IBcPagedResult<ICustomerLookupItem>> {
+    const items = await fetchAllBcLookupItems<ICustomerLookupItem>(async query => {
+      const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup', query);
+      return response.data;
+    }, searchText, pageSize);
 
     return {
-      items: (result?.items || []).map(item => ({
-        number: normalizeText(item.number || item.no || ''),
-        no: normalizeText(item.no || item.number || ''),
-        name: normalizeText(item.name || '')
-      })).filter(item => item.no),
-      pageSize: result?.pageSize || pageSize,
-      hasNext: Boolean(result?.hasNext),
-      nextToken: result?.nextToken
+      items: items.map(item => ({
+        number: normalizeText(item.number),
+        name: normalizeText(item.name)
+      })).filter(item => item.number),
+      pageSize,
+      hasNext: false
     };
   }
 
@@ -118,42 +163,42 @@ export class CustomerService {
     return this.mapCustomerApiToUiModel(customer);
   }
 
-  public async postCustomerToBusinessCentral(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
-    const response = await this.apiClient.post<ICustomerCreateRequest, ICustomerCreateApiResponse>('/api/customers', payload);
+  public async postCustomerToBusinessCentral(payload: ICustomerCreateFormState): Promise<ICustomerApiModel> {
+    const response = await this.apiClient.post<ICustomerCreateRequest, ICustomerApiModel>('/api/customers', payload);
 
-    return response.data || {};
+    if (!response.data) {
+      throw new Error('Business Central did not return the customer contract.');
+    }
+
+    this.customerLookupPromise = undefined;
+    return response.data;
   }
 
-  public async createCustomer(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
+  public async createCustomer(payload: ICustomerCreateFormState): Promise<ICustomerApiModel> {
     return this.postCustomerToBusinessCentral(payload);
   }
 
-  public mapCustomerApiToUiModel(api?: ICustomerApiModel): ICustomerDetail {
-    const customerCode = api?.customerCode || api?.number || api?.no || '';
-
+  public mapCustomerApiToUiModel(api: ICustomerApiModel): ICustomerDetail {
     return {
-      id: api?.id || api?.number || api?.no || api?.customerCode || '',
-      customerCode,
-      customerName: api?.customerName || api?.name || '',
-      branch: api?.branch || '',
-      department: api?.department || '',
-      name: api?.name || '',
-      name2: api?.name2 || '',
-      city: api?.city || '',
-      stateCode: api?.stateCode || '',
-      countryCode: api?.countryCode || api?.countryRegionCode || '',
-      countryRegionCode: api?.countryRegionCode || api?.countryCode || '',
-      locationCode: api?.locationCode || '',
-      status: api?.status || api?.gstCustomerType || api?.customerPostingGroup || '',
-      address: api?.address || '',
-      address2: api?.address2 || '',
-      postCode: api?.postCode || '',
-      phoneNumber: api?.phoneNumber || '',
-      PAN: api?.PAN || api?.panNo || '',
-      gstRegistrationNo: api?.gstRegistrationNo || api?.gstNo || '',
-      genPostingGroup: api?.genPostingGroup || '',
-      customerPostingGroup: api?.customerPostingGroup || '',
-      gstCustomerType: api?.gstCustomerType || ''
+      id: api.id,
+      customerCode: api.number,
+      customerName: api.name,
+      name: api.name,
+      name2: api.name2,
+      city: api.city,
+      stateCode: api.stateCode,
+      countryCode: api.countryRegionCode,
+      countryRegionCode: api.countryRegionCode,
+      locationCode: api.locationCode,
+      address: api.address,
+      address2: api.address2,
+      postCode: api.postCode,
+      phoneNumber: api.phoneNumber,
+      PAN: api.PAN,
+      gstRegistrationNo: api.gstRegistrationNo,
+      genPostingGroup: api.genPostingGroup,
+      customerPostingGroup: api.customerPostingGroup,
+      gstCustomerType: api.gstCustomerType
     };
   }
 
@@ -180,15 +225,4 @@ export class CustomerService {
     };
   }
 
-  private mapPagedResult(
-    api: CustomerListApiResponse | undefined,
-    requestedPageSize: number
-  ): IServerPagedResult<ICustomerListItem> {
-    return {
-      items: (api?.items || []).map(item => this.mapCustomerApiToUiModel(item)),
-      pageSize: api?.pageSize || requestedPageSize,
-      hasNext: Boolean(api?.hasNext),
-      nextToken: api?.nextToken
-    };
-  }
 }

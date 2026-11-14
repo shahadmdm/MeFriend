@@ -36,6 +36,7 @@ export interface IEntityDashboardProps<TItem> {
   onFilterChange?: (key: string, value: FilterValue) => void;
   onFilterApply?: () => void;
   onFilterClear?: () => void;
+  filterSummary?: React.ReactNode;
   pagination?: IPaginationState;
   cursorPagination?: ICursorPaginationState;
   onPageChange?: (pageNumber: number) => void;
@@ -64,6 +65,7 @@ export const EntityDashboard = <TItem,>({
   onFilterChange,
   onFilterApply,
   onFilterClear,
+  filterSummary,
   pagination,
   cursorPagination,
   onPageChange,
@@ -99,6 +101,7 @@ export const EntityDashboard = <TItem,>({
             onApply={onFilterApply}
             onClear={onFilterClear}
             loading={loading}
+            summary={filterSummary}
           />
         ) : null}
         <EntityTable

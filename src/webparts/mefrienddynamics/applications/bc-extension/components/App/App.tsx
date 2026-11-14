@@ -279,7 +279,11 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, acce
       return (
         <InvoicePage
           currentUser={access.currentAppUser}
+          customerService={customerService}
+          itemMasterService={itemMasterService}
           invoiceService={invoiceService}
+          salesOrderRequestService={salesOrderRequestService}
+          selectedCompany={selectedCompany}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
           selectedCompany={selectedCompany}
@@ -293,6 +297,7 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, acce
           currentUser={access.currentAppUser}
           invoiceNumber={route.params.id || ''}
           invoiceService={invoiceService}
+          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -303,6 +308,7 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, acce
         <SalesOrderPage
           canCreateSalesOrder={access.canCreate('salesOrders')}
           currentUser={access.currentAppUser}
+          customerService={customerService}
           salesOrderService={salesOrderService}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
@@ -345,7 +351,9 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, acce
       return (
         <SalesOrderDetailPage
           currentUser={access.currentAppUser}
+          customerService={customerService}
           salesOrderId={route.params.id || ''}
+          salesOrderRequestService={salesOrderRequestService}
           salesOrderService={salesOrderService}
           onNavigate={handleNavigate}
         />
