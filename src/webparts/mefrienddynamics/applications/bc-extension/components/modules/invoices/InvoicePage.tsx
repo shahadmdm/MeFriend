@@ -42,6 +42,7 @@ export interface IInvoicePageProps {
   selectedCompany?: BcCompany;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
+  selectedCompany: BcCompany;
 }
 
 interface IInvoiceDocumentAction {
