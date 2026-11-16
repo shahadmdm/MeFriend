@@ -1,50 +1,87 @@
 import type { IModuleConfig } from '../../../../shared/models/IModuleConfig';
-import type { ILookupOption } from '../../../../shared/models/ILookupOption';
-import type { IInvoiceListItem } from '../../../bc-extension/models/invoices/IInvoiceModels';
+import type { IInvoiceListItem } from '../../../bc-extension/models/invoices';
+import { formatCurrency, formatDate } from '../../../../shared/utilities/formatUtils';
 
-const paymentStatusOptions: readonly ILookupOption[] = [
-  { key: 'paid', text: 'Paid', value: 'Paid' },
-  { key: 'partiallyPaid', text: 'Partially Paid', value: 'Partially Paid' },
-  { key: 'unpaid', text: 'Unpaid', value: 'Unpaid' },
-  { key: 'overdue', text: 'Overdue', value: 'Overdue' }
-];
+/**
+ * BPT invoice module. Its filter UI follows BC Extension's current 5-control
+ * invoice configuration, but columns read BPT's existing invoice UI model.
+ * BC Extension source files are not modified.
+ */
+const displayText = (value?: string | null): string =>
+  value === undefined || value === null || value === '' ? 'N/A' : value;
+const displayDate = (value?: string): string => formatDate(value, 'N/A');
+const displayAmount = (value?: number): string => formatCurrency(value, undefined, 'N/A');
 
-const invoiceStatusOptions: readonly ILookupOption[] = [
-  { key: 'open', text: 'Open', value: 'Open' },
-  { key: 'posted', text: 'Posted', value: 'Posted' },
-  { key: 'cancelled', text: 'Cancelled', value: 'Cancelled' }
-];
+type IInvoiceWithCurrentBcFields = IInvoiceListItem & {
+  releaseOrderNumber?: string;
+  releaseOrderDate?: string;
+  salespersonName?: string;
+};
 
 export const invoicesModuleConfig: IModuleConfig<IInvoiceListItem> = {
   key: 'invoices',
   title: 'Invoices',
   route: 'invoices',
   icon: 'Invoice',
-  description: 'Invoice listing, details, outstanding, and payment visibility.',
+  description: 'Invoice listing and details from Business Central.',
   createEnabled: false,
   detailEnabled: true,
   order: 4,
   visible: true,
   tableColumns: [
-    { key: 'invoiceNumber', header: 'Invoice Number', fieldName: 'invoiceNumber', sortable: true, renderType: 'text' },
-    { key: 'customerName', header: 'Customer', fieldName: 'customerName', sortable: true, renderType: 'text', minWidth: 180 },
-    { key: 'salesOrderNumber', header: 'Sales Order', fieldName: 'salesOrderNumber', sortable: true, renderType: 'text' },
-    { key: 'invoiceDate', header: 'Invoice Date', fieldName: 'invoiceDate', sortable: true, renderType: 'date' },
-    { key: 'dueDate', header: 'Due Date', fieldName: 'dueDate', sortable: true, renderType: 'date' },
-    { key: 'totalAmount', header: 'Total Amount', fieldName: 'totalAmount', sortable: true, renderType: 'amount' },
-    { key: 'paidAmount', header: 'Paid Amount', fieldName: 'paidAmount', sortable: true, renderType: 'amount' },
-    { key: 'outstandingAmount', header: 'Outstanding Amount', fieldName: 'outstandingAmount', sortable: true, renderType: 'amount', minWidth: 150 },
-    { key: 'paymentStatus', header: 'Payment Status', fieldName: 'paymentStatus', sortable: true, renderType: 'status', minWidth: 142 },
-    { key: 'invoiceStatus', header: 'Invoice Status', fieldName: 'invoiceStatus', sortable: true, renderType: 'status', minWidth: 142 }
+    {
+      key: 'invoiceNumber', header: 'Invoice Number', fieldName: 'invoiceNumber',
+      sortable: true, renderType: 'text',
+      customRender: item => displayText(item.invoiceNumber)
+    },
+    {
+      key: 'invoiceDate', header: 'Invoice Date', fieldName: 'invoiceDate',
+      sortable: true, renderType: 'date',
+      customRender: item => displayDate(item.invoiceDate)
+    },
+    {
+      key: 'customerName', header: 'Customer Name', fieldName: 'customerName',
+      sortable: true, renderType: 'text', minWidth: 180,
+      customRender: item => displayText(item.customerName)
+    },
+    {
+      key: 'releaseOrderNumber', header: 'Release Order Number', fieldName: 'releaseOrderNumber',
+      sortable: false, renderType: 'text',
+      customRender: item => displayText((item as IInvoiceWithCurrentBcFields).releaseOrderNumber)
+    },
+    {
+      key: 'releaseOrderDate', header: 'Release Order Date', fieldName: 'releaseOrderDate',
+      sortable: false, renderType: 'date',
+      customRender: item => displayDate((item as IInvoiceWithCurrentBcFields).releaseOrderDate)
+    },
+    {
+      key: 'salespersonName', header: 'Salesperson Name', fieldName: 'salespersonName',
+      sortable: false, renderType: 'text', minWidth: 180,
+      customRender: item => displayText(
+        (item as IInvoiceWithCurrentBcFields).salespersonName || item.salesPerson || item.salespersonCode
+      )
+    },
+    {
+      key: 'totalAmountIncludingTax', header: 'Total Amount', fieldName: 'totalAmountIncludingTax',
+      sortable: true, renderType: 'amount', align: 'right',
+      customRender: item => displayAmount(item.totalAmount)
+    },
+    {
+      key: 'remainingAmount', header: 'Outstanding Amount', fieldName: 'remainingAmount',
+      sortable: true, renderType: 'amount', align: 'right',
+      customRender: item => displayAmount(item.outstandingAmount)
+    },
+    {
+      key: 'paymentStatus', header: 'Payment Status', fieldName: 'paymentStatus',
+      sortable: false, renderType: 'text',
+      customRender: item => displayText(item.paymentStatus)
+    }
   ],
   filters: [
-    { key: 'searchText', label: 'Search', type: 'text' },
+    { key: 'searchText', label: 'Search by invoice number', type: 'text' },
     { key: 'invoiceDate', label: 'Invoice Date', type: 'dateRange' },
-    { key: 'invoiceStatus', label: 'Invoice Status', type: 'status', options: invoiceStatusOptions },
-    { key: 'customerCode', label: 'Customer', type: 'text' },
-    { key: 'salesOrderNumber', label: 'Sales Order', type: 'text' },
-    { key: 'paymentStatus', label: 'Payment Status', type: 'status', options: paymentStatusOptions },
+    { key: 'customerSearch', label: 'Customer', type: 'text', placeholder: 'Customer name or code' },
     { key: 'salespersonCode', label: 'Salesperson', type: 'dropdown', searchable: true },
-    { key: 'outstandingOnly', label: 'Outstanding only', type: 'outstandingOnly' }
+    { key: 'outstandingOnly', label: 'Outstanding Only', type: 'outstandingOnly' }
   ]
 };

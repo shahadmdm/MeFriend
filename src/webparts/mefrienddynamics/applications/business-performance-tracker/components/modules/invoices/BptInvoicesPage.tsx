@@ -1,15 +1,16 @@
 import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 
 // BPT's invoice listing uses the original BC Extension EntityDashboard layout.
 // Only the InvoiceService class is owned by BPT; all invoice UI helpers/models remain shared.
 
-import { invoicesModuleConfig } from '../../../../bc-extension/config/modules/invoicesModuleConfig';
+import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
 
 import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 
-import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem, PaymentStatus } from '../../../../bc-extension/models/invoices';
+import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem } from '../../../../bc-extension/models/invoices';
 
 import type { IAppUser } from '../../../../bc-extension/models/settings/IAppAccessModels';
 
@@ -17,7 +18,7 @@ import type { BcCompany } from '../../../../bc-extension/config/bcCompanies';
 
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 
-import type { InvoiceService } from '../../../services/invoices/invoiceService';
+import type { IOutstandingInvoiceReport, InvoiceService } from '../../../services/invoices/invoiceService';
 
 import type { SalespersonService } from '../../../../bc-extension/services/salespersons/salespersonService';
 
@@ -30,6 +31,11 @@ import { EntityDashboard } from '../../../../../shared/components/dashboard/Enti
 import type { EntityFilterValues, FilterValue } from '../../../../../shared/components/filters/EntityFilters';
 
 import { useToast } from '../../../../../shared/components/toast/useToast';
+
+import { exportBptOutstandingToExcel } from './bptOutstandingExcelExport';
+
+// Use the same filter conversion and active-filter detection as BC Extension InvoicePage.
+import { hasUserInvoiceFilters, toInvoiceFilters } from './invoiceFilterUtils';
 
 import {
 
@@ -65,27 +71,19 @@ interface IInvoiceDocumentAction {
 
 }
 
-// Convert EntityDashboard's form values into the exact shape expected by
-// BPT's InvoiceService. Empty or whitespace-only values should not be sent.
-const optionalText = (value: FilterValue | undefined): string | undefined => {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed && trimmed.toLowerCase() !== 'all' ? trimmed : undefined;
-};
+interface IOutstandingReportState {
+  report?: IOutstandingInvoiceReport;
+  loading: boolean;
+  error?: string;
+}
 
-const toInvoiceFilters = (values: EntityFilterValues): IInvoiceFilters => ({
-  searchText: optionalText(values.searchText),
-  customerCode: optionalText(values.customerCode),
-  salespersonCode: optionalText(values.salespersonCode),
-  salesOrderNumber: optionalText(values.salesOrderNumber),
-  invoiceStatus: optionalText(values.invoiceStatus),
-  paymentStatus: optionalText(values.paymentStatus) as PaymentStatus | undefined,
-  invoiceDateFrom: optionalText(values.invoiceDateFrom),
-  invoiceDateTo: optionalText(values.invoiceDateTo),
-  dueDateFrom: optionalText(values.dueDateFrom),
-  dueDateTo: optionalText(values.dueDateTo),
+const currencyFormatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
+
+
+// Preserve the working BPT API contract; the shared BC converter unpacks date ranges.
+// Some shared EntityDashboard controls emit the text 'true' for a boolean selection.
+const toBptInvoiceFilters = (values: EntityFilterValues): IInvoiceFilters => ({
+  ...toInvoiceFilters(values),
   outstandingOnly: values.outstandingOnly === true || values.outstandingOnly === 'true'
 });
 
@@ -121,6 +119,78 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   const toast = useToast();
 
+  const pageContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const [filterActionRow, setFilterActionRow] = React.useState<HTMLElement | null>(null);
+
+  // Do not insert or move DOM nodes ahead of the React-managed Apply/Clear
+  // footer. That can break React reconciliation and make the buttons disappear.
+  // Instead, use the existing footer itself as the portal target. The report
+  // appears in the footer's first flex row, with Apply/Clear underneath it.
+  React.useEffect(() => {
+    const container = pageContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const changedRows = new Map<HTMLElement, string | null>();
+
+    const findFilterActionRow = (): void => {
+      const buttons = Array.from(container.querySelectorAll('button'));
+      const applyButton = buttons.find(button =>
+        (button.textContent || '').trim().toLowerCase() === 'apply'
+      );
+      const clearButton = buttons.find(button =>
+        (button.textContent || '').trim().toLowerCase() === 'clear'
+      );
+
+      if (!applyButton || !clearButton) {
+        setFilterActionRow(current => current === null ? current : null);
+        return;
+      }
+
+      let actionRow: HTMLElement | null = applyButton.parentElement;
+      while (actionRow && !actionRow.contains(clearButton)) {
+        actionRow = actionRow.parentElement;
+      }
+
+      // Never restyle the full filter form (which owns inputs and dropdowns).
+      // If the shared component's structure changes, fall back to showing the
+      // report above the dashboard instead of risking the filter controls.
+      if (!actionRow || actionRow === container ||
+          actionRow.querySelector('input, select, textarea')) {
+        setFilterActionRow(current => current === null ? current : null);
+        return;
+      }
+
+      if (!changedRows.has(actionRow)) {
+        changedRows.set(actionRow, actionRow.getAttribute('style'));
+        actionRow.style.display = 'flex';
+        actionRow.style.flexWrap = 'wrap';
+        actionRow.style.justifyContent = 'flex-end';
+        actionRow.style.alignItems = 'center';
+      }
+
+      setFilterActionRow(current => current === actionRow ? current : actionRow);
+    };
+
+    findFilterActionRow();
+    // Observe *only* to rediscover a replaced React footer: do not move it.
+    const observer = new MutationObserver(findFilterActionRow);
+    observer.observe(container, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      changedRows.forEach((originalStyle, row) => {
+        if (originalStyle === null) {
+          row.removeAttribute('style');
+        } else {
+          row.setAttribute('style', originalStyle);
+        }
+      });
+    };
+  }, []);
+
+
   const { filters, restrictedSalespersonCode } = useSalespersonFilter(
 
     invoicesModuleConfig.filters || [],
@@ -131,6 +201,9 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   );
 
+  // Display the 5 reference-config controls; dateRange conversion uses the BC helper.
+  // useSalespersonFilter retains the existing salesperson restriction.
+
   const initialFilterValues = restrictedSalespersonCode ? { salespersonCode: restrictedSalespersonCode } : {};
 
   const [items, setItems] = React.useState<readonly IInvoiceListItem[]>([]);
@@ -138,6 +211,11 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
 
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
+
+  const appliedInvoiceFilters = React.useMemo(
+    () => toBptInvoiceFilters(appliedFilterValues),
+    [appliedFilterValues]
+  );
 
   const { pagination, applyResult, changePage, reset } = useCursorPagination();
 
@@ -151,6 +229,11 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   const documentActionsInProgress = React.useRef<Set<string>>(new Set());
 
+  const [outstandingReport, setOutstandingReport] = React.useState<IOutstandingReportState>({ loading: false });
+  const [exportingOutstandingReport, setExportingOutstandingReport] = React.useState(false);
+  const outstandingReportRequestIdRef = React.useRef(0);
+
+
   // Applying the same filters again must still trigger a new request.
   const [filterRequestVersion, setFilterRequestVersion] = React.useState(0);
 
@@ -163,7 +246,7 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
     setError(undefined);
 
     try {
-      const requestedFilters = toInvoiceFilters(appliedFilterValues);
+      const requestedFilters = appliedInvoiceFilters;
       const result = await invoiceService.getInvoices(
         requestedFilters,
         pagination,
@@ -187,7 +270,7 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
       }
     }
   }, [
-    appliedFilterValues,
+    appliedInvoiceFilters,
     applyResult,
     currentUser,
     invoiceService,
@@ -218,6 +301,39 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
     setAppliedFilterValues(current => ({ ...current, salespersonCode: restrictedSalespersonCode }));
 
   }, [restrictedSalespersonCode]);
+
+  // Fetch the entire report only when Outstanding Only is applied.  The service
+  // follows continuation tokens; table pagination must not change the total.
+  const outstandingOnlyActive = appliedInvoiceFilters.outstandingOnly === true;
+  React.useEffect(() => {
+    const requestId = ++outstandingReportRequestIdRef.current;
+    if (!outstandingOnlyActive) {
+      setOutstandingReport({ loading: false });
+      return;
+    }
+
+    setOutstandingReport({ loading: true });
+    invoiceService.getOutstandingInvoiceReport(appliedInvoiceFilters, currentUser)
+      .then(report => {
+        if (requestId === outstandingReportRequestIdRef.current) {
+          setOutstandingReport({ loading: false, report });
+        }
+      })
+      .catch(reportError => {
+        if (requestId === outstandingReportRequestIdRef.current) {
+          setOutstandingReport({
+            loading: false,
+            error: getUserFriendlyError(normalizeError(reportError))
+          });
+        }
+      });
+
+    return () => {
+      if (requestId === outstandingReportRequestIdRef.current) {
+        outstandingReportRequestIdRef.current += 1;
+      }
+    };
+  }, [appliedInvoiceFilters, currentUser, filterRequestVersion, invoiceService, outstandingOnlyActive]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
 
@@ -402,29 +518,114 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   }, [onNavigate, toast]);
 
-  const outstandingOnlyActive = appliedFilterValues.outstandingOnly === true || appliedFilterValues.outstandingOnly === 'true';
+  // Totals for the invoice rows currently visible on this cursor-paginated page.
+  // Do not call these a grand total: the API does not provide all matching
+  // invoice totals in its paged listing response.
+  const pageTotals = React.useMemo(() => items.reduce((totals, invoice) => {
+    const invoiceAmount = invoice.totalAmount;
+    const balanceAmount = invoice.outstandingAmount;
 
-  const appliedInvoiceFilters = toInvoiceFilters(appliedFilterValues);
-  const appliedFilterCount = [
-    appliedInvoiceFilters.searchText,
-    appliedInvoiceFilters.customerCode,
-    appliedInvoiceFilters.salespersonCode,
-    appliedInvoiceFilters.salesOrderNumber,
-    appliedInvoiceFilters.invoiceStatus,
-    appliedInvoiceFilters.paymentStatus,
-    appliedInvoiceFilters.invoiceDateFrom,
-    appliedInvoiceFilters.invoiceDateTo,
-    appliedInvoiceFilters.dueDateFrom,
-    appliedInvoiceFilters.dueDateTo
-  ].filter(Boolean).length + (appliedInvoiceFilters.outstandingOnly ? 1 : 0);
+    if (typeof invoiceAmount === 'number' && Number.isFinite(invoiceAmount)) {
+      totals.invoiceAmount += invoiceAmount;
+    }
+    if (typeof balanceAmount === 'number' && Number.isFinite(balanceAmount)) {
+      totals.outstandingAmount += balanceAmount;
+    }
+    return totals;
+  }, { invoiceAmount: 0, outstandingAmount: 0 }), [items]);
+
+  const hasUserFilters = hasUserInvoiceFilters(appliedFilterValues, restrictedSalespersonCode);
+
+  const reportInvoices = outstandingReport.report?.invoices || [];
+  const salespersonCodes = new Set(reportInvoices
+    .map(invoice => (invoice.salespersonCode || '').trim().toUpperCase())
+    .filter(Boolean));
+  const salespersonCount = salespersonCodes.size;
+  const hasSelectedSalesperson = Boolean(
+    (appliedInvoiceFilters.salespersonCode || restrictedSalespersonCode || '').trim()
+  );
+  const outstandingScopeLabel = hasSelectedSalesperson ? 'Salesperson Outstanding' : 'Business Outstanding';
+
+  const handleOutstandingReportExport = async (): Promise<void> => {
+    if (!outstandingReport.report || outstandingReport.loading || exportingOutstandingReport) {
+      return;
+    }
+    setExportingOutstandingReport(true);
+    try {
+      // Resolve salesperson names for the report, even when the BC invoice
+      // list response contains only salesperson codes.
+      const lookup = await salespersonService.getSalespersonLookup().catch(() => ({ items: [] }));
+      const salespersonNames = new Map<string, string>();
+      lookup.items.forEach(item => {
+        if (item.code && item.name) {
+          salespersonNames.set(item.code.trim().toUpperCase(), item.name.trim());
+        }
+      });
+
+      exportBptOutstandingToExcel({
+        filters: appliedInvoiceFilters,
+        invoices: outstandingReport.report.invoices,
+        totalOutstandingAmount: outstandingReport.report.totalOutstandingAmount,
+        salespersonCount,
+        scopeLabel: outstandingScopeLabel,
+        salespersonNames
+      });
+      toast.success('Outstanding invoice Excel download started.', { title: 'Excel export' });
+    } catch (exportError) {
+      toast.error(getUserFriendlyError(normalizeError(exportError)), { title: 'Unable to export report' });
+    } finally {
+      setExportingOutstandingReport(false);
+    }
+  };
+
+  const outstandingReportSummary = outstandingOnlyActive ? (
+    <div role="status" style={{
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
+      gap: 16, padding: '14px 16px', borderRadius: 8,
+      border: '1px solid #ddd5f5', background: '#f5f1ff', color: '#28136c'
+    }}>
+      {outstandingReport.loading ? (
+        <span>Calculating outstanding report across all invoice pages...</span>
+      ) : outstandingReport.error ? (
+        <span role="alert">Unable to calculate outstanding report: {outstandingReport.error}</span>
+      ) : (
+        <>
+          <div style={{ minWidth: 195 }}>
+            <div style={{ marginBottom: 4, fontSize: 14 }}>{outstandingScopeLabel}</div>
+            <strong style={{ display: 'block', color: '#bf162c', fontSize: 17 }}>
+              {outstandingReport.report
+                ? currencyFormatter.format(outstandingReport.report.totalOutstandingAmount)
+                : '—'}
+            </strong>
+          </div>
+          <div style={{ flex: '1 1 225px', fontSize: 14 }}>
+            {outstandingReport.report ? reportInvoices.length : '—'} outstanding invoice(s) across{' '}
+            {outstandingReport.report ? salespersonCount : '—'} salesperson(s)
+          </div>
+          <button
+            type="button"
+            onClick={handleOutstandingReportExport}
+            disabled={!outstandingReport.report || exportingOutstandingReport}
+            style={{
+              background: '#ffffff', border: '1px solid #d9cfee', borderRadius: 6,
+              color: '#29116f', cursor: outstandingReport.report ? 'pointer' : 'not-allowed',
+              fontWeight: 600, padding: '9px 14px', whiteSpace: 'nowrap'
+            }}
+          >
+            {exportingOutstandingReport ? 'Preparing Excel...' : 'Export Excel'}
+          </button>
+        </>
+      )}
+    </div>
+  ) : undefined;
 
   return (
-
-    <EntityDashboard<IInvoiceListItem>
+    <div ref={pageContainerRef}>
+      <EntityDashboard<IInvoiceListItem>
 
       title={invoicesModuleConfig.title}
 
-      subtitle={`${invoicesModuleConfig.description}${appliedFilterCount > 0 ? ` · ${appliedFilterCount} filter(s) active` : ''}`}
+      subtitle={invoicesModuleConfig.description}
 
       columns={invoicesModuleConfig.tableColumns || []}
 
@@ -508,20 +709,67 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
       getRowKey={(item, index) => item.id || item.invoiceNumber || String(index)}
 
-      emptyTitle={outstandingOnlyActive ? 'No outstanding invoices found.' : 'No invoices found'}
+      emptyTitle={hasUserFilters ? 'No matching invoices' : 'No invoices available'}
 
-      emptyMessage={
+      emptyMessage={hasUserFilters
+        ? 'No invoices match the selected filters.'
+        : 'No invoices exist for the selected company.'}
 
-        outstandingOnlyActive
-
-          ? 'No outstanding invoices found.'
-
-          : 'No invoice records are available from the configured service.'
-
-      }
-
-    />
-
+      />
+      {/* Invoice-table footer. This is rendered directly after EntityDashboard so
+          shared table and filter components stay untouched. */}
+      {!loading && !error && items.length > 0 && (
+        <div
+          role="contentinfo"
+          aria-label="Invoice table current-page totals"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 24,
+            padding: '14px 20px',
+            background: '#f5f7fb',
+            border: '1px solid #dbe3ef',
+            borderTop: '3px solid #b4c4dc',
+            borderRadius: '0 0 8px 8px',
+            marginTop: 4,
+            marginBottom: 16
+          }}
+        >
+          <div style={{ marginRight: 'auto', fontWeight: 700, color: '#24324b' }}>
+            Current Page Total
+            <div style={{ fontWeight: 400, fontSize: 12, color: '#5b6475' }}>
+              {items.length} invoice(s) on page {pagination.pageNumber}
+            </div>
+          </div>
+          <div style={{ minWidth: 170, textAlign: 'right' }}>
+            <div style={{ fontSize: 12, color: '#5b6475' }}>Total Amount</div>
+            <strong style={{ fontSize: 17, color: '#24324b' }}>
+              {currencyFormatter.format(pageTotals.invoiceAmount)}
+            </strong>
+          </div>
+          <div style={{ minWidth: 185, textAlign: 'right' }}>
+            <div style={{ fontSize: 12, color: '#5b6475' }}>Outstanding Amount</div>
+            <strong style={{ fontSize: 17, color: '#a81636' }}>
+              {currencyFormatter.format(pageTotals.outstandingAmount)}
+            </strong>
+          </div>
+        </div>
+      )}
+      {filterActionRow && outstandingReportSummary
+        ? ReactDOM.createPortal(
+            <div style={{ order: -1, flex: '0 0 100%', width: '100%',
+                          boxSizing: 'border-box', marginBottom: 12,
+                          paddingBottom: 14, borderBottom: '1px solid #ebe5f6' }}>
+              {outstandingReportSummary}
+            </div>,
+            filterActionRow
+          )
+        : !filterActionRow && outstandingReportSummary
+          ? <div style={{ marginTop: 12, marginBottom: 16 }}>{outstandingReportSummary}</div>
+          : null}
+    </div>
   );
 
 };
