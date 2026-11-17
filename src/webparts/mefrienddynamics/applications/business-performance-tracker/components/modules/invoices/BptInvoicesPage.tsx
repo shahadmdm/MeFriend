@@ -7,6 +7,7 @@ import * as ReactDOM from 'react-dom';
 import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
+import type { IServerPagedResult } from '../../../../../shared/models/IServerPagination';
 
 import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 
@@ -79,6 +80,130 @@ interface IOutstandingReportState {
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
 
+
+/** A display-only invoice row used as the last row of the BPT table. */
+const GRAND_TOTAL_ROW_ID = '__BPT_ALL_FILTERED_INVOICE_TOTAL__';
+const isGrandTotalRow = (invoice: IInvoiceListItem): boolean =>
+  invoice.id === GRAND_TOTAL_ROW_ID && invoice.invoiceNumber === GRAND_TOTAL_ROW_ID;
+
+interface IInvoiceGrandTotals {
+  invoiceCount: number;
+  invoiceAmount: number;
+  outstandingAmount: number;
+}
+
+interface IInvoiceGrandTotalsState {
+  loading: boolean;
+  totals?: IInvoiceGrandTotals;
+  error?: string;
+  scannedCount?: number;
+}
+
+/**
+ * Fetch all matching invoices from the EXISTING /api/SalesInvoices listing.
+ * No totals endpoint is called. Cursor pagination is required for an exact sum.
+ * When any user-selected filter is applied, the same traversal also collects
+ * the matching records for Excel export (no second scan).
+ */
+interface IGrandTotalsReadResult {
+  totals: IInvoiceGrandTotals;
+  outstandingReport?: IOutstandingInvoiceReport;
+}
+
+const getGrandTotalsAcrossAllPages = async (
+  invoiceService: InvoiceService,
+  filters: IInvoiceFilters,
+  currentUser?: IAppUser,
+  collectOutstandingInvoices: boolean = false,
+  onProgress?: (count: number) => void
+): Promise<IGrandTotalsReadResult> => {
+  const totals: IInvoiceGrandTotals = {
+    invoiceCount: 0,
+    invoiceAmount: 0,
+    outstandingAmount: 0
+  };
+  const outstandingInvoices: IInvoiceListItem[] = [];
+  const visitedTokens = new Set<string>();
+  let continuationToken: string | undefined;
+  // Try larger batches; fall back to 100 if the API rejects the request size.
+  let pageSize = 250;
+
+  do {
+    let page: IServerPagedResult<IInvoiceListItem> | undefined;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        page = await invoiceService.getInvoices(
+          filters,
+          {
+            pageNumber: 1,
+            pageSize,
+            currentToken: continuationToken,
+            nextToken: undefined,
+            hasNext: false,
+            pageTokens: { 1: continuationToken }
+          },
+          undefined,
+          currentUser
+        );
+        break;
+      } catch (pageError) {
+        const status = normalizeError(pageError).status;
+        if (pageSize > 100 && !continuationToken &&
+          (status === 400 || status === 413 || status === 422)) {
+          pageSize = 100;
+          continue;
+        }
+        if (attempt < 2 && (status === 429 || status === 500 || status === 502 ||
+          status === 503 || status === 504)) {
+          await new Promise<void>(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+          continue;
+        }
+        throw pageError;
+      }
+    }
+
+    if (!page) {
+      throw new Error('Unable to load the next invoice page to complete totals.');
+    }
+
+    page.items.forEach((invoice: IInvoiceListItem): void => {
+      totals.invoiceCount += 1;
+      if (typeof invoice.totalAmount === 'number' && Number.isFinite(invoice.totalAmount)) {
+        totals.invoiceAmount += invoice.totalAmount;
+      }
+      if (typeof invoice.outstandingAmount === 'number' && Number.isFinite(invoice.outstandingAmount)) {
+        totals.outstandingAmount += invoice.outstandingAmount;
+      }
+      if (collectOutstandingInvoices) {
+        outstandingInvoices.push(invoice);
+      }
+    });
+    if (onProgress) {
+      onProgress(totals.invoiceCount);
+    }
+
+    if (page.hasNext && !page.nextToken) {
+      throw new Error('Invoice API says more pages exist but does not provide a nextToken.');
+    }
+    const nextToken = page.hasNext ? page.nextToken : undefined;
+    if (nextToken && visitedTokens.has(nextToken)) {
+      throw new Error('Invoice API repeated a continuation token; totals cannot be verified.');
+    }
+    if (nextToken) {
+      visitedTokens.add(nextToken);
+    }
+    pageSize = page.pageSize || pageSize;
+    continuationToken = nextToken;
+  } while (continuationToken);
+
+  return {
+    totals,
+    outstandingReport: collectOutstandingInvoices
+      ? { invoices: outstandingInvoices, totalOutstandingAmount: totals.outstandingAmount }
+      : undefined
+  };
+};
 
 // Preserve the working BPT API contract; the shared BC converter unpacks date ranges.
 // Some shared EntityDashboard controls emit the text 'true' for a boolean selection.
@@ -231,7 +356,9 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   const [outstandingReport, setOutstandingReport] = React.useState<IOutstandingReportState>({ loading: false });
   const [exportingOutstandingReport, setExportingOutstandingReport] = React.useState(false);
-  const outstandingReportRequestIdRef = React.useRef(0);
+
+  const [grandTotals, setGrandTotals] = React.useState<IInvoiceGrandTotalsState>({ loading: true });
+  const grandTotalsRequestIdRef = React.useRef(0);
 
 
   // Applying the same filters again must still trigger a new request.
@@ -302,38 +429,56 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   }, [restrictedSalespersonCode]);
 
-  // Fetch the entire report only when Outstanding Only is applied.  The service
-  // follows continuation tokens; table pagination must not change the total.
+  // Only applied user filters (not unsaved draft inputs or mandatory access
+  // restrictions alone) enable the Excel report.
+  const hasUserFilters = hasUserInvoiceFilters(appliedFilterValues, restrictedSalespersonCode);
+
+  // Totals remain independent of the table page. If a user filter is applied,
+  // the same scan also collects all matching invoices for the three-sheet Excel.
   const outstandingOnlyActive = appliedInvoiceFilters.outstandingOnly === true;
   React.useEffect(() => {
-    const requestId = ++outstandingReportRequestIdRef.current;
-    if (!outstandingOnlyActive) {
-      setOutstandingReport({ loading: false });
-      return;
-    }
+    const requestId = ++grandTotalsRequestIdRef.current;
+    setGrandTotals({ loading: true });
+    setOutstandingReport({ loading: hasUserFilters });
 
-    setOutstandingReport({ loading: true });
-    invoiceService.getOutstandingInvoiceReport(appliedInvoiceFilters, currentUser)
-      .then(report => {
-        if (requestId === outstandingReportRequestIdRef.current) {
-          setOutstandingReport({ loading: false, report });
+    void getGrandTotalsAcrossAllPages(
+      invoiceService,
+      appliedInvoiceFilters,
+      currentUser,
+      hasUserFilters,
+      (count: number): void => {
+        if (requestId === grandTotalsRequestIdRef.current) {
+          setGrandTotals({ loading: true, scannedCount: count });
         }
-      })
-      .catch(reportError => {
-        if (requestId === outstandingReportRequestIdRef.current) {
-          setOutstandingReport({
-            loading: false,
-            error: getUserFriendlyError(normalizeError(reportError))
-          });
-        }
-      });
+      }
+    ).then(result => {
+      if (requestId !== grandTotalsRequestIdRef.current) {
+        return;
+      }
+      setGrandTotals({ loading: false, totals: result.totals });
+      if (hasUserFilters && result.outstandingReport) {
+        setOutstandingReport({ loading: false, report: result.outstandingReport });
+      } else {
+        setOutstandingReport({ loading: false });
+      }
+    }).catch(totalsError => {
+      if (requestId !== grandTotalsRequestIdRef.current) {
+        return;
+      }
+      const errorMessage = getUserFriendlyError(normalizeError(totalsError));
+      setGrandTotals({ loading: false, error: errorMessage });
+      if (hasUserFilters) {
+        setOutstandingReport({ loading: false, error: errorMessage });
+      }
+    });
 
     return () => {
-      if (requestId === outstandingReportRequestIdRef.current) {
-        outstandingReportRequestIdRef.current += 1;
+      if (requestId === grandTotalsRequestIdRef.current) {
+        grandTotalsRequestIdRef.current += 1;
       }
     };
-  }, [appliedInvoiceFilters, currentUser, filterRequestVersion, invoiceService, outstandingOnlyActive]);
+  }, [appliedInvoiceFilters, currentUser, filterRequestVersion, invoiceService,
+    selectedCompany.name, hasUserFilters]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
 
@@ -361,6 +506,8 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
       : { ...filterValues };
 
     reset(); // Always go back to page one for a new filter selection.
+    // Never offer an export from the previous filter selection.
+    setOutstandingReport({ loading: true });
     setAppliedFilterValues(nextValues);
     setFilterRequestVersion(version => version + 1);
   }, [filterValues, reset, restrictedSalespersonCode]);
@@ -372,6 +519,8 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
     setFilterValues({ ...clearedValues });
     reset();
+    // Clearing filters immediately removes the Excel report.
+    setOutstandingReport({ loading: false });
     setAppliedFilterValues({ ...clearedValues });
     setFilterRequestVersion(version => version + 1);
   }, [reset, restrictedSalespersonCode]);
@@ -506,6 +655,10 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   const handleRowClick = React.useCallback((item: IInvoiceListItem): void => {
 
+    if (isGrandTotalRow(item)) {
+      return;
+    }
+
     try {
 
       onNavigate(buildInvoiceDetailPath(item.invoiceNumber));
@@ -518,23 +671,65 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
   }, [onNavigate, toast]);
 
-  // Totals for the invoice rows currently visible on this cursor-paginated page.
-  // Do not call these a grand total: the API does not provide all matching
-  // invoice totals in its paged listing response.
-  const pageTotals = React.useMemo(() => items.reduce((totals, invoice) => {
-    const invoiceAmount = invoice.totalAmount;
-    const balanceAmount = invoice.outstandingAmount;
+  // A fixed final table row, separate from real data and from cursor pagination.
+  // Display it even when there are zero invoices, while totals are loading,
+  // or when the all-pages API request fails (never silently show an incorrect 0).
+  const grandTotalRow = React.useMemo<IInvoiceListItem>(() => ({
+    ...(items[0] || {}),
+    id: GRAND_TOTAL_ROW_ID,
+    invoiceNumber: GRAND_TOTAL_ROW_ID,
+    totalAmount: grandTotals.totals?.invoiceAmount,
+    outstandingAmount: grandTotals.totals?.outstandingAmount
+  } as IInvoiceListItem), [items, grandTotals.totals]);
 
-    if (typeof invoiceAmount === 'number' && Number.isFinite(invoiceAmount)) {
-      totals.invoiceAmount += invoiceAmount;
-    }
-    if (typeof balanceAmount === 'number' && Number.isFinite(balanceAmount)) {
-      totals.outstandingAmount += balanceAmount;
-    }
-    return totals;
-  }, { invoiceAmount: 0, outstandingAmount: 0 }), [items]);
+  const tableItems = React.useMemo<readonly IInvoiceListItem[]>(
+    () => [...items, grandTotalRow],
+    [items, grandTotalRow]
+  );
 
-  const hasUserFilters = hasUserInvoiceFilters(appliedFilterValues, restrictedSalespersonCode);
+  const tableColumns = React.useMemo(() =>
+    (invoicesModuleConfig.tableColumns || []).map(column => ({
+      ...column,
+      customRender: (invoice: IInvoiceListItem): React.ReactNode => {
+        if (!isGrandTotalRow(invoice)) {
+          if (column.customRender) {
+            return column.customRender(invoice);
+          }
+          const fallback = (invoice as unknown as Record<string, unknown>)[column.fieldName || column.key];
+          return fallback === undefined || fallback === null ? '' : String(fallback);
+        }
+
+        let content: React.ReactNode = '\u00a0';
+        let monetary = false;
+        if (column.key === 'invoiceNumber') {
+          content = grandTotals.loading
+            ? `GRAND TOTAL (Scanning${grandTotals.scannedCount ? `: ${grandTotals.scannedCount} records` : '...'})`
+            : grandTotals.error
+              ? 'GRAND TOTAL (Unavailable)'
+              : `GRAND TOTAL (${grandTotals.totals?.invoiceCount || 0} invoices)`;
+        } else if (column.key === 'totalAmountIncludingTax' || column.key === 'totalAmount') {
+          monetary = true;
+          content = grandTotals.loading ? 'Calculating...'
+            : grandTotals.error ? 'Unavailable'
+              : currencyFormatter.format(grandTotals.totals?.invoiceAmount || 0);
+        } else if (column.key === 'remainingAmount' || column.key === 'outstandingAmount') {
+          monetary = true;
+          content = grandTotals.loading ? 'Calculating...'
+            : grandTotals.error ? 'Unavailable'
+              : currencyFormatter.format(grandTotals.totals?.outstandingAmount || 0);
+        }
+
+        return (
+          <span style={{
+            display: 'block', boxSizing: 'border-box', width: '100%',
+            minHeight: 34, padding: '8px 4px',
+            background: '#eef3fb', borderTop: '2px solid #9fafd2',
+            color: monetary ? '#9f1530' : '#233453', fontWeight: 700,
+            textAlign: monetary ? 'right' : 'left', whiteSpace: 'nowrap'
+          }} title={grandTotals.error || undefined}>{content}</span>
+        );
+      }
+    })), [grandTotals]);
 
   const reportInvoices = outstandingReport.report?.invoices || [];
   const salespersonCodes = new Set(reportInvoices
@@ -545,9 +740,11 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
     (appliedInvoiceFilters.salespersonCode || restrictedSalespersonCode || '').trim()
   );
   const outstandingScopeLabel = hasSelectedSalesperson ? 'Salesperson Outstanding' : 'Business Outstanding';
+  const reportScopeLabel = outstandingOnlyActive ? outstandingScopeLabel : 'Filtered Invoice Report';
 
   const handleOutstandingReportExport = async (): Promise<void> => {
-    if (!outstandingReport.report || outstandingReport.loading || exportingOutstandingReport) {
+    if (!hasUserFilters || !outstandingReport.report || outstandingReport.loading ||
+      grandTotals.loading || exportingOutstandingReport) {
       return;
     }
     setExportingOutstandingReport(true);
@@ -567,10 +764,10 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
         invoices: outstandingReport.report.invoices,
         totalOutstandingAmount: outstandingReport.report.totalOutstandingAmount,
         salespersonCount,
-        scopeLabel: outstandingScopeLabel,
+        scopeLabel: reportScopeLabel,
         salespersonNames
       });
-      toast.success('Outstanding invoice Excel download started.', { title: 'Excel export' });
+      toast.success('Filtered invoice Excel download started.', { title: 'Excel export' });
     } catch (exportError) {
       toast.error(getUserFriendlyError(normalizeError(exportError)), { title: 'Unable to export report' });
     } finally {
@@ -578,37 +775,41 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
     }
   };
 
-  const outstandingReportSummary = outstandingOnlyActive ? (
+  const outstandingReportSummary = hasUserFilters ? (
     <div role="status" style={{
       display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
       gap: 16, padding: '14px 16px', borderRadius: 8,
       border: '1px solid #ddd5f5', background: '#f5f1ff', color: '#28136c'
     }}>
       {outstandingReport.loading ? (
-        <span>Calculating outstanding report across all invoice pages...</span>
+        <span>Preparing filtered invoice report across all pages...</span>
       ) : outstandingReport.error ? (
-        <span role="alert">Unable to calculate outstanding report: {outstandingReport.error}</span>
+        <span role="alert">Unable to prepare filtered report: {outstandingReport.error}</span>
       ) : (
         <>
           <div style={{ minWidth: 195 }}>
-            <div style={{ marginBottom: 4, fontSize: 14 }}>{outstandingScopeLabel}</div>
-            <strong style={{ display: 'block', color: '#bf162c', fontSize: 17 }}>
-              {outstandingReport.report
-                ? currencyFormatter.format(outstandingReport.report.totalOutstandingAmount)
-                : '—'}
-            </strong>
+            <div style={{ marginBottom: 4, fontSize: 14 }}>{reportScopeLabel}</div>
+            {outstandingOnlyActive && (
+              <strong style={{ display: 'block', color: '#bf162c', fontSize: 17 }}>
+                {outstandingReport.report
+                  ? currencyFormatter.format(outstandingReport.report.totalOutstandingAmount)
+                  : '—'}
+              </strong>
+            )}
           </div>
           <div style={{ flex: '1 1 225px', fontSize: 14 }}>
-            {outstandingReport.report ? reportInvoices.length : '—'} outstanding invoice(s) across{' '}
+            {outstandingReport.report ? reportInvoices.length : '—'}{' '}
+            {outstandingOnlyActive ? 'outstanding invoice(s)' : 'matching invoice(s)'} across{' '}
             {outstandingReport.report ? salespersonCount : '—'} salesperson(s)
           </div>
           <button
             type="button"
             onClick={handleOutstandingReportExport}
-            disabled={!outstandingReport.report || exportingOutstandingReport}
+            disabled={!outstandingReport.report || outstandingReport.loading ||
+              grandTotals.loading || exportingOutstandingReport}
             style={{
               background: '#ffffff', border: '1px solid #d9cfee', borderRadius: 6,
-              color: '#29116f', cursor: outstandingReport.report ? 'pointer' : 'not-allowed',
+              color: '#29116f', cursor: outstandingReport.report && !grandTotals.loading ? 'pointer' : 'not-allowed',
               fontWeight: 600, padding: '9px 14px', whiteSpace: 'nowrap'
             }}
           >
@@ -627,13 +828,13 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
       subtitle={invoicesModuleConfig.description}
 
-      columns={invoicesModuleConfig.tableColumns || []}
+      columns={tableColumns}
 
       filters={filters}
 
       filterValues={filterValues}
 
-      items={items}
+      items={tableItems}
 
       loading={loading}
 
@@ -663,11 +864,13 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
               icon: 'print',
 
-              disabled: () => Boolean(documentAction),
+              disabled: (item: IInvoiceListItem) => Boolean(documentAction) || isGrandTotalRow(item),
 
               onClick: item => {
 
-                handlePrint(item).catch(() => undefined);
+                if (!isGrandTotalRow(item)) {
+                  handlePrint(item).catch(() => undefined);
+                }
 
               }
 
@@ -681,11 +884,13 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
               icon: 'download',
 
-              disabled: () => Boolean(documentAction),
+              disabled: (item: IInvoiceListItem) => Boolean(documentAction) || isGrandTotalRow(item),
 
               onClick: item => {
 
-                handleDownload(item).catch(() => undefined);
+                if (!isGrandTotalRow(item)) {
+                  handleDownload(item).catch(() => undefined);
+                }
 
               }
 
@@ -707,7 +912,7 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
 
       onSort={handleSort}
 
-      getRowKey={(item, index) => item.id || item.invoiceNumber || String(index)}
+      getRowKey={(item, index) => isGrandTotalRow(item) ? GRAND_TOTAL_ROW_ID : item.id || item.invoiceNumber || String(index)}
 
       emptyTitle={hasUserFilters ? 'No matching invoices' : 'No invoices available'}
 
@@ -716,47 +921,6 @@ export const BptInvoicesPage: React.FC<IBptInvoicesPageProps> = ({ currentUser, 
         : 'No invoices exist for the selected company.'}
 
       />
-      {/* Invoice-table footer. This is rendered directly after EntityDashboard so
-          shared table and filter components stay untouched. */}
-      {!loading && !error && items.length > 0 && (
-        <div
-          role="contentinfo"
-          aria-label="Invoice table current-page totals"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: 24,
-            padding: '14px 20px',
-            background: '#f5f7fb',
-            border: '1px solid #dbe3ef',
-            borderTop: '3px solid #b4c4dc',
-            borderRadius: '0 0 8px 8px',
-            marginTop: 4,
-            marginBottom: 16
-          }}
-        >
-          <div style={{ marginRight: 'auto', fontWeight: 700, color: '#24324b' }}>
-            Current Page Total
-            <div style={{ fontWeight: 400, fontSize: 12, color: '#5b6475' }}>
-              {items.length} invoice(s) on page {pagination.pageNumber}
-            </div>
-          </div>
-          <div style={{ minWidth: 170, textAlign: 'right' }}>
-            <div style={{ fontSize: 12, color: '#5b6475' }}>Total Amount</div>
-            <strong style={{ fontSize: 17, color: '#24324b' }}>
-              {currencyFormatter.format(pageTotals.invoiceAmount)}
-            </strong>
-          </div>
-          <div style={{ minWidth: 185, textAlign: 'right' }}>
-            <div style={{ fontSize: 12, color: '#5b6475' }}>Outstanding Amount</div>
-            <strong style={{ fontSize: 17, color: '#a81636' }}>
-              {currencyFormatter.format(pageTotals.outstandingAmount)}
-            </strong>
-          </div>
-        </div>
-      )}
       {filterActionRow && outstandingReportSummary
         ? ReactDOM.createPortal(
             <div style={{ order: -1, flex: '0 0 100%', width: '100%',

@@ -2,9 +2,8 @@ import type { IInvoiceFilters, IInvoiceListItem } from '../../../../bc-extension
 import { normalizeBusinessDate } from '../../../../../shared/utilities/formatUtils';
 
 /**
- * BPT outstanding report: the same three worksheets as the BC Extension
- * export (Summary, Salesperson Summary, Outstanding Invoices), without a
- * dependency on an external `xlsx` package.
+ * BPT Excel export: ONE worksheet (Filtered Invoices) only.
+ * Retains the existing API used by BptInvoicesPage and does not require xlsx.
  */
 export interface IOutstandingSalespersonSummary {
   salespersonCode: string;
@@ -39,6 +38,7 @@ interface ISheetDefinition {
   dateColumns?: readonly number[];
   dateTimeColumns?: readonly number[];
   moneyRows?: readonly number[];
+  totalRow?: number;
   filter?: boolean;
 }
 interface IZipEntry { name: string; contents: string; }
@@ -119,23 +119,27 @@ const sheetXml = (sheet: ISheetDefinition): string => {
   const rows: string[] = sheet.rows.map((cells, index) => {
     const rowNumber = index + 1;
     const values = cells.map((value, column) => {
-      let style = headerRow === rowNumber ? 1 : 0;
+      let style = headerRow === rowNumber ? 1 : rowNumber === sheet.totalRow ? 5 : 0;
       if (value instanceof Date) {
         style = (sheet.dateTimeColumns || []).indexOf(column) !== -1 ? 4 : 3;
       } else if (typeof value === 'number' &&
           ((sheet.moneyColumns || []).indexOf(column) !== -1 ||
            ((sheet.moneyRows || []).indexOf(rowNumber) !== -1 && column === 1))) {
-        style = 2;
+        style = rowNumber === sheet.totalRow ? 6 : 2;
       }
       return cellXml(value, `${columnName(column)}${rowNumber}`, style);
     }).join('');
-    return `<row r="${rowNumber}">${values}</row>`;
+    // Give the purple column header enough height for Excel's filter arrows and long labels.
+    // Also emphasize the final GRAND TOTAL row without changing row positions.
+    const height = rowNumber === headerRow ? ' ht="34" customHeight="1"'
+      : rowNumber === sheet.totalRow ? ' ht="28" customHeight="1"' : '';
+    return `<row r="${rowNumber}"${height}>${values}</row>`;
   });
   const widths = sheet.widths.map((width, index) =>
     `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
   ).join('');
   const filter = sheet.filter && headerRow
-    ? `<autoFilter ref="A${headerRow}:${columnName(lastColumn - 1)}${lastRow}"/>`
+    ? `<autoFilter ref="A${headerRow}:${columnName(lastColumn - 1)}${Math.max(headerRow, sheet.totalRow ? sheet.totalRow - 1 : lastRow)}"/>`
     : '';
   const freeze = headerRow
     ? `<pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/>`
@@ -144,10 +148,17 @@ const sheetXml = (sheet: ISheetDefinition): string => {
     `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
     `<dimension ref="A1:${columnName(lastColumn - 1)}${lastRow}"/>` +
     `<sheetViews><sheetView workbookViewId="0">${freeze}</sheetView></sheetViews>` +
-    `<sheetFormatPr defaultRowHeight="16"/>` +
-    `<cols>${widths}</cols><sheetData>${rows.join('')}</sheetData>${filter}</worksheet>`;
+    `<sheetFormatPr defaultRowHeight="20"/>` +
+    `<cols>${widths}</cols><sheetData>${rows.join('')}</sheetData>${filter}` +
+    // A clear printed page header; this doesn't shift table cells or create extra sheets.
+    `<headerFooter><oddHeader>&amp;C&amp;BFiltered Invoice Report</oddHeader>` +
+    `<oddFooter>&amp;CPage &amp;P of &amp;N</oddFooter></headerFooter></worksheet>`;
 };
 
+// Excel requires the two built-in fills first: none (fillId=0) and gray125
+// (fillId=1). Without gray125, Excel can display the intended solid purple
+// header as a dotted/patterned fill, hiding its white heading text.
+// Custom purple and lavender fills are therefore fillId=2 and fillId=3.
 const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
   `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
   `<numFmts count="3">` +
@@ -155,18 +166,27 @@ const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
   `<numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>` +
   `<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/>` +
   `</numFmts>` +
-  `<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>` +
-  `<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>` +
-  `<fills count="2"><fill><patternFill patternType="none"/></fill>` +
-  `<fill><patternFill patternType="solid"><fgColor rgb="FF3E1988"/></patternFill></fill></fills>` +
+  `<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font>` +
+  `<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>` +
+  `<font><b/><sz val="11"/><color rgb="FF2B1B56"/><name val="Calibri"/></font></fonts>` +
+  `<fills count="4"><fill><patternFill patternType="none"/></fill>` +
+  `<fill><patternFill patternType="gray125"/></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FF3E1988"/>` +
+  `<bgColor indexed="64"/></patternFill></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FFEDE6FF"/>` +
+  `<bgColor indexed="64"/></patternFill></fill></fills>` +
   `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
   `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-  `<cellXfs count="5">` +
+  `<cellXfs count="7">` +
   `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
-  `<xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/>` +
+  `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" ` +
+  `applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" ` +
+  `wrapText="1"/></xf>` +
   `<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>` +
   `<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>` +
   `<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>` +
+  `<xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>` +
+  `<xf numFmtId="164" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1"/>` +
   `</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
   `</styleSheet>`;
 
@@ -280,7 +300,7 @@ const reportFileName = (filters: IInvoiceFilters): string => {
   const from = normalizeBusinessDate(filters.invoiceDateFrom) || 'all-dates';
   const to = normalizeBusinessDate(filters.invoiceDateTo) || 'all-dates';
   const salesperson = filters.salespersonCode || 'business';
-  const fileName = `Outstanding_Report_${salesperson}_${from}_to_${to}`;
+  const fileName = `Filtered_Invoices_${salesperson}_${from}_to_${to}`;
   return fileName.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') + '.xlsx';
 };
 
@@ -291,23 +311,6 @@ const sheetDefinitions = (data: IOutstandingReportExportData): readonly ISheetDe
       names.set(summary.salespersonCode.trim().toUpperCase(), summary.salespersonName);
     }
   });
-  const dateLabel = (value?: string): string => normalizeBusinessDate(value) || 'All dates';
-  const label = data.filters.salespersonCode ? 'Salesperson Outstanding Total' : 'Business Outstanding Total';
-  const summaryRows: CellValue[][] = [
-    ['Outstanding Report'],
-    ['Generated On', new Date()],
-    ['Invoice Date From', dateLabel(data.filters.invoiceDateFrom)],
-    ['Invoice Date To', dateLabel(data.filters.invoiceDateTo)],
-    ['Salesperson Filter', data.filters.salespersonCode || 'All salespersons'],
-    ['Outstanding Invoice Count', data.invoices.length],
-    [label, data.totalOutstandingAmount]
-  ];
-  const salespersonRows: CellValue[][] = [
-    ['Salesperson Code', 'Salesperson Name', 'Outstanding Invoice Count', 'Outstanding Amount'],
-    ...data.salespersonSummaries.map(item => [
-      item.salespersonCode, item.salespersonName || '', item.outstandingInvoiceCount, item.outstandingAmount
-    ])
-  ];
   const invoiceRows: CellValue[][] = [
     ['Invoice Number', 'Invoice Date', 'Customer', 'Customer Code', 'Salesperson Code',
       'Salesperson Name', 'Invoice Amount', 'Outstanding Amount', 'Payment Status'],
@@ -326,12 +329,29 @@ const sheetDefinitions = (data: IOutstandingReportExportData): readonly ISheetDe
       ];
     })
   ];
+  // Sum every exported filtered invoice, not just the current table page.
+  // Accumulating in paise avoids floating-point rounding artefacts.
+  const invoiceAmountTotal = data.invoices.reduce((sum, invoice) =>
+    sum + Math.round(safeAmount(invoice.totalAmount) * 100), 0) / 100;
+  const outstandingAmountTotal = data.invoices.reduce((sum, invoice) =>
+    sum + Math.round(safeAmount(invoice.outstandingAmount) * 100), 0) / 100;
+
+  invoiceRows.push([
+    `GRAND TOTAL (${data.invoices.length} invoices)`, '', '', '', '', '',
+    invoiceAmountTotal, outstandingAmountTotal, ''
+  ]);
+
   return [
-    { name: 'Summary', rows: summaryRows, widths: [34, 30], dateTimeColumns: [1], moneyRows: [7] },
-    { name: 'Salesperson Summary', rows: salespersonRows, widths: [20, 32, 28, 22],
-      headerRow: 1, moneyColumns: [3], filter: true },
-    { name: 'Outstanding Invoices', rows: invoiceRows, widths: [21, 16, 34, 20, 21, 32, 21, 23, 20],
-      headerRow: 1, dateColumns: [1], moneyColumns: [6, 7], filter: true }
+    {
+      name: 'Filtered Invoices',
+      rows: invoiceRows,
+      widths: [21, 16, 36, 20, 23, 34, 21, 25, 20],
+      headerRow: 1,
+      dateColumns: [1],
+      moneyColumns: [6, 7],
+      totalRow: invoiceRows.length,
+      filter: true
+    }
   ];
 };
 

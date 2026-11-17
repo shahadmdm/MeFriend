@@ -243,6 +243,51 @@ export class InvoiceService {
   }
 
   /**
+   * Fast grand totals (optional API route; requires backend implementation).
+   * Expected response.data:
+   * { invoiceCount: number, totalAmount: number, outstandingAmount: number }
+   * Totals must be computed over ALL matching invoices, not a paginated page.
+   */
+  public async getInvoiceTotals(
+    filters: IInvoiceFilters = {},
+    currentUser?: IAppUser
+  ): Promise<{ invoiceCount: number; totalAmount: number; outstandingAmount: number }> {
+    const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
+    const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
+    const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
+    const params = new URLSearchParams();
+    const setText = (name: string, value?: string): void => {
+      const normalized = value && value.trim();
+      if (normalized) {
+        params.set(name, normalized);
+      }
+    };
+    setText('Search', filters.searchText);
+    const customerSearch = (filters as IInvoiceFilters & { customerSearch?: string }).customerSearch;
+    setText('CustomerSearch', customerSearch);
+    setText('Filters[customerCode]', filters.customerCode);
+    setText('Filters[salespersonCode]', salespersonCode);
+    setText('Filters[invoiceDateFrom]', normalizeBusinessDate(filters.invoiceDateFrom));
+    setText('Filters[invoiceDateTo]', normalizeBusinessDate(filters.invoiceDateTo));
+    if (filters.outstandingOnly === true) {
+      params.set('OutstandingOnly', 'true');
+    }
+    const query = params.toString();
+    const url = query ? `/api/SalesInvoices/totals?${query}` : '/api/SalesInvoices/totals';
+    const response = await this.apiClient.get<{
+      invoiceCount: number;
+      totalAmount: number;
+      outstandingAmount: number;
+    }>(url);
+    const data = response.data;
+    if (!data || !Number.isFinite(data.invoiceCount) ||
+      !Number.isFinite(data.totalAmount) || !Number.isFinite(data.outstandingAmount)) {
+      throw new Error('SalesInvoices totals API returned invalid totals.');
+    }
+    return data;
+  }
+
+  /**
    * Retains the known-working BPT query mapping. buildServerPageQuery is used
    * for paging/sorting only; filter keys are written explicitly to the URL.
    * The BC API's PagedRequest expects Search, CustomerSearch, OutstandingOnly
