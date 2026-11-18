@@ -1,0 +1,1 @@
+export { CollectionOnBillsPage } from './CollectionOnBillsPage';

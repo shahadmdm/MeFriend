@@ -10,6 +10,7 @@ export type AppRouteKey =
   | 'targetEdit'
   | 'collectionReport'
   | 'collectionVerticalReport'
+  | 'collectionOnBills'
   | 'unitAccess'
   | 'modulePermissions'
   | 'settings';

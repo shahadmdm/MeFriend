@@ -53,6 +53,9 @@ import {
 import {
   CollectionVerticalReportPage,
 } from '../modules/collectionVerticalReport';
+import {
+  CollectionOnBillsPage
+} from '../modules/collectionOnBills';
 import { ApiClient } from '../../../../shared/api/apiClient';
 import { AuthClient } from '../../../../shared/api/authClient';
 import { appConfig } from '../../config/appConfig';
@@ -62,6 +65,9 @@ import {
 import {
   CollectionVerticalReportApiService
 } from '../../services/businessReport/collectionVerticalReportApiService';
+import {
+  CollectionOnBillsApiService
+} from '../../services/collectionOnBills/collectionOnBillsApiService';
 import {
   AppLayout
 } from '../Layout/AppLayout';
@@ -95,7 +101,7 @@ import {
 } from '../../utils/routeUtils';
 import styles from '../../../bc-extension/components/App/App.module.scss';
 const sharePointWebAbsoluteUrl =
-  'https://madhyamamgroup.sharepoint.com/sites/Me-Friend';
+  appConfig.sharePointSettings.masterDataWebUrl;
 type RouteAction = 'view' | 'create' | 'manage';
 interface IRouteAccessRequirement {
   moduleKey: BusinessPerformancePermissionModuleKey;
@@ -147,6 +153,10 @@ const routeAccessRequirements:
       moduleKey: 'bpt.collectionVerticalReport',
       action: 'view'
     },
+    collectionOnBills: {
+      moduleKey: 'bpt.collectionOnBills',
+      action: 'view'
+    },
     unitAccess: {
       moduleKey: 'bpt.unitAccess',
       action: 'manage'
@@ -186,6 +196,9 @@ const getAuthorizedLandingRoute = (
   if (access.canView('bpt.collectionVerticalReport')) {
     return 'collectionVerticalReport';
   }
+  if (access.canView('bpt.collectionOnBills')) {
+    return 'collectionOnBills';
+  }
   if (
     access.canManage('bpt.app') ||
     access.canManage('bpt.unitAccess')
@@ -219,6 +232,9 @@ const getAllowedModuleKeys = (
   }
   if (access.canView('bpt.collectionVerticalReport')) {
     allowedModuleKeys.push('collectionVerticalReport');
+  }
+  if (access.canView('bpt.collectionOnBills')) {
+    allowedModuleKeys.push('collectionOnBills');
   }
   // Settings is opened from the signed-in user popup.
   // Unit Access and Module Permissions are sections inside Settings.
@@ -329,6 +345,27 @@ export const App: React.FC<IPortalApplicationProps> = ({
     });
     return new CollectionVerticalReportApiService(new ApiClient(authClient));
   }, [aadHttpClientFactory, httpClient]);
+  // Local SPFx debug only. The backend's development restriction
+  // remains mandatory; no production data access is enabled here.
+  const collectionOnBillsApiService = React.useMemo(() => {
+    const debugManifest = new URLSearchParams(
+      window.location.search
+    ).get('debugManifestsFile') || '';
+    if (!debugManifest.startsWith('https://localhost:4321/')) {
+      return undefined;
+    }
+
+    const authClient = new AuthClient({
+      aadHttpClientFactory,
+      httpClient,
+      settings: {
+        ...appConfig.backendApi
+      }
+    });
+
+    return new CollectionOnBillsApiService(new ApiClient(authClient));
+  }, [aadHttpClientFactory, httpClient]);
+
   const targetService = React.useMemo(
     () =>
       new TargetService({
@@ -561,6 +598,18 @@ export const App: React.FC<IPortalApplicationProps> = ({
           loadSalespersons={loadTargetSalespersons}
           collectionVerticalReportApiService={collectionVerticalReportApiService}
           selectedCompanyId={selectedCompanyId}
+        />
+      );
+    }
+    // Collection on Bills: receipt-level invoice applications.
+    if (route.key === 'collectionOnBills') {
+      return (
+        <CollectionOnBillsPage
+          selectedCompanyId={selectedCompanyId}
+          appUserId={access.appUserId}
+          unitService={unitService}
+          unitAccessService={unitAccessService}
+          collectionOnBillsApiService={collectionOnBillsApiService}
         />
       );
     }

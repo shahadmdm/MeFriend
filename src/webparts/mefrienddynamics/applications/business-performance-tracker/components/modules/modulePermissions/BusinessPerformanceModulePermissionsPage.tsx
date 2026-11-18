@@ -37,6 +37,7 @@ const candidateModules: readonly { key: string; label: string }[] = [
   { key: 'bpt.targets', label: 'Target Master' },
   { key: 'bpt.collectionReport', label: 'Business Report' },
   { key: 'bpt.collectionVerticalReport', label: 'Collection Report' },
+  { key: 'bpt.collectionOnBills', label: 'Collection on Bills' },
   { key: 'bpt.unitAccess', label: 'Unit Access' }
 ];
 

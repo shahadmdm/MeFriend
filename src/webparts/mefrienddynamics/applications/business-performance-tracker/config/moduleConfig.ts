@@ -1,4 +1,3 @@
-
 import type {
   IAppRouteDefinition
 } from '../models/common/AppRoute';
@@ -24,6 +23,10 @@ import {
 } from './modules/collectionVerticalReportModuleConfig';
 
 import {
+  collectionOnBillsModuleConfig
+} from './modules/collectionOnBillsModuleConfig';
+
+import {
   unitAccessModuleConfig
 } from './modules/unitAccessModuleConfig';
 
@@ -43,7 +46,8 @@ export const moduleDefinitions = [
   unitsModuleConfig,
   targetsModuleConfig,
   collectionReportModuleConfig,
-  collectionVerticalReportModuleConfig
+  collectionVerticalReportModuleConfig,
+  collectionOnBillsModuleConfig
 ] as const;
 
 
@@ -130,6 +134,13 @@ export const routeDefinitions:
     showInNavigation: true
   },
   {
+    key: 'collectionOnBills',
+    path: collectionOnBillsModuleConfig.route,
+    title: collectionOnBillsModuleConfig.title,
+    moduleKey: collectionOnBillsModuleConfig.key,
+    showInNavigation: true
+  },
+  {
     key: 'unitAccess',
     path: unitAccessModuleConfig.route,
     title: unitAccessModuleConfig.title,
@@ -158,6 +169,7 @@ export {
   targetsModuleConfig,
   collectionReportModuleConfig,
   collectionVerticalReportModuleConfig,
+  collectionOnBillsModuleConfig,
   unitAccessModuleConfig,
   modulePermissionsModuleConfig,
   settingsModuleConfig

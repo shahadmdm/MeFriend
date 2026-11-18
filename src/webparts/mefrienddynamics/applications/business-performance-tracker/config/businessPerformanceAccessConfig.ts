@@ -20,6 +20,7 @@ export const businessPerformancePermissionModuleKeys = [
   'bpt.targets',
   'bpt.collectionReport',
   'bpt.collectionVerticalReport',
+  'bpt.collectionOnBills',
   'bpt.unitAccess'
 ] as const;
 
@@ -36,6 +37,7 @@ export const businessPerformancePermissionModuleLabels:
     'bpt.targets': 'Target Master',
     'bpt.collectionReport': 'Collection Report',
     'bpt.collectionVerticalReport': 'Collection Vertical Report',
+    'bpt.collectionOnBills': 'Collection on Bills',
     'bpt.unitAccess': 'Unit Access'
   };
 
