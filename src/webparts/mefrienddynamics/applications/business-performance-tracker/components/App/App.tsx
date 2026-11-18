@@ -33,7 +33,8 @@ import type {
   AppRouteKey
 } from '../../models/common/AppRoute';
 import {
-  getBcCompanyLabel
+  getBcCompanyLabel,
+  type BcCompany
 } from '../../../bc-extension/config/bcCompanies';
 import {
   VerticalPage,
@@ -80,14 +81,12 @@ import {
 import {
   BusinessPerformanceUnitAccessService
 } from '../../services/access/businessPerformanceUnitAccessService';
-
 import {
   TargetService
 } from '../../services/targets/targetService';
 import {
   TargetSalespersonLookupService
 } from '../../services/targets/targetSalespersonLookupService';
-
 import {
   BusinessPerformanceUnitAccessManager
 } from '../modules/unitAccess/BusinessPerformanceUnitAccessManager';
@@ -95,6 +94,7 @@ import {
   BusinessPerformanceModulePermissionsPage
 } from '../modules/modulePermissions/BusinessPerformanceModulePermissionsPage';
 import { SettingsPage } from '../modules/settings/SettingsPage';
+import { BptInvoicesRoute } from '../modules/invoices/BptInvoicesRoute';
 import {
   resolveRoute,
   buildHashHref
@@ -153,10 +153,21 @@ const routeAccessRequirements:
       moduleKey: 'bpt.collectionVerticalReport',
       action: 'view'
     },
+
     collectionOnBills: {
       moduleKey: 'bpt.collectionOnBills',
       action: 'view'
     },
+    // Independent Invoice module permission; protect list and detail routes.
+    invoices: {
+      moduleKey: 'bpt.invoices',
+      action: 'view'
+    },
+    invoiceDetail: {
+      moduleKey: 'bpt.invoices',
+      action: 'view'
+    },
+
     unitAccess: {
       moduleKey: 'bpt.unitAccess',
       action: 'manage'
@@ -196,9 +207,14 @@ const getAuthorizedLandingRoute = (
   if (access.canView('bpt.collectionVerticalReport')) {
     return 'collectionVerticalReport';
   }
+
   if (access.canView('bpt.collectionOnBills')) {
     return 'collectionOnBills';
   }
+  if (access.canView('bpt.invoices')) {
+    return 'invoices';
+  }
+
   if (
     access.canManage('bpt.app') ||
     access.canManage('bpt.unitAccess')
@@ -208,10 +224,7 @@ const getAuthorizedLandingRoute = (
   return undefined;
 };
 /**
- * Build the permitted sidebar module list from the verified
- * Business Performance Tracker View permissions.
- *
- * AppNavigation hides all modules not in this list.
+ * Build the permitted sidebar module list from verified permissions.
  * Route-level permission checks remain independent.
  */
 const getAllowedModuleKeys = (
@@ -233,9 +246,14 @@ const getAllowedModuleKeys = (
   if (access.canView('bpt.collectionVerticalReport')) {
     allowedModuleKeys.push('collectionVerticalReport');
   }
+
   if (access.canView('bpt.collectionOnBills')) {
     allowedModuleKeys.push('collectionOnBills');
   }
+  if (access.canView('bpt.invoices')) {
+    allowedModuleKeys.push('invoices');
+  }
+
   // Settings is opened from the signed-in user popup.
   // Unit Access and Module Permissions are sections inside Settings.
   if (
@@ -292,7 +310,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
       }),
     [pageContext, spHttpClient]
   );
-
   const unitAccessService = React.useMemo(
     () =>
       new BusinessPerformanceUnitAccessService({
@@ -302,7 +319,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
       }),
     [pageContext, spHttpClient]
   );
-
   const targetSalespersonLookupService = React.useMemo(
     () =>
       new TargetSalespersonLookupService({
@@ -412,7 +428,8 @@ export const App: React.FC<IPortalApplicationProps> = ({
   }, [onPortalReady]);
   const renderRoute = (
     selectedCompanyId: string,
-    access: IUseBusinessPerformanceAccessResult
+    access: IUseBusinessPerformanceAccessResult,
+    selectedCompany: BcCompany
   ): React.ReactNode => {
     // Settings requires at least one of its section permissions.
     // Individual pages continue enforcing their own access rules.
@@ -428,7 +445,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     const requirement = routeAccessRequirements[route.key];
     if (
       requirement &&
@@ -601,6 +617,7 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
+
     // Collection on Bills: receipt-level invoice applications.
     if (route.key === 'collectionOnBills') {
       return (
@@ -613,6 +630,22 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
+
+    // Invoice and Outstanding Report routes.
+    if (route.key === 'invoices' || route.key === 'invoiceDetail') {
+      return (
+        <BptInvoicesRoute
+          key={selectedCompany.id}
+          aadHttpClientFactory={aadHttpClientFactory}
+          httpClient={httpClient}
+          selectedCompany={selectedCompany}
+          isDetail={route.key === 'invoiceDetail'}
+          invoiceNumber={route.key === 'invoiceDetail' ? route.params.id || '' : undefined}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
     if (route.key === 'modulePermissions') {
       return (
         <BusinessPerformanceModulePermissionsPage
@@ -661,7 +694,7 @@ export const App: React.FC<IPortalApplicationProps> = ({
               {(selectedCompany, clearCompany) => (
                 <div className={styles.app}>
                   <AppLayout
-                    activeRouteKey={route.key}
+                    activeRouteKey={route.key === 'invoiceDetail' ? 'invoices' : route.key}
                     allowedModuleKeys={getAllowedModuleKeys(access)}
                     userDisplayName={userDisplayName}
                     onNavigate={handleNavigate}
@@ -687,7 +720,8 @@ export const App: React.FC<IPortalApplicationProps> = ({
                   >
                     {renderRoute(
                       selectedCompany.id,
-                      access
+                      access,
+                      selectedCompany
                     )}
                   </AppLayout>
                 </div>

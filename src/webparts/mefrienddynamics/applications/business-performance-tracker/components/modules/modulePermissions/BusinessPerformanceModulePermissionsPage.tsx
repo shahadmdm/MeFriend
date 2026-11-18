@@ -38,6 +38,7 @@ const candidateModules: readonly { key: string; label: string }[] = [
   { key: 'bpt.collectionReport', label: 'Business Report' },
   { key: 'bpt.collectionVerticalReport', label: 'Collection Report' },
   { key: 'bpt.collectionOnBills', label: 'Collection on Bills' },
+  { key: 'bpt.invoices', label: 'Invoices' },
   { key: 'bpt.unitAccess', label: 'Unit Access' }
 ];
 
@@ -288,7 +289,7 @@ export const BusinessPerformanceModulePermissionsPage: React.FC<IProps> = ({
                               type="checkbox"
                               aria-label={`${row.label}: ${flag}`}
                               checked={row[flag]}
-                              disabled={busy || protectSelfApp}
+                              disabled={busy || protectSelfApp || (row.moduleKey === 'bpt.invoices' && (flag === 'canCreate' || flag === 'canManage'))}
                               onChange={event => updateFlag(
                                 row.moduleKey,
                                 flag,

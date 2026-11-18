@@ -21,6 +21,7 @@ export const businessPerformancePermissionModuleKeys = [
   'bpt.collectionReport',
   'bpt.collectionVerticalReport',
   'bpt.collectionOnBills',
+  'bpt.invoices',
   'bpt.unitAccess'
 ] as const;
 
@@ -38,6 +39,7 @@ export const businessPerformancePermissionModuleLabels:
     'bpt.collectionReport': 'Collection Report',
     'bpt.collectionVerticalReport': 'Collection Vertical Report',
     'bpt.collectionOnBills': 'Collection on Bills',
+    'bpt.invoices': 'Invoices Report',
     'bpt.unitAccess': 'Unit Access'
   };
 
