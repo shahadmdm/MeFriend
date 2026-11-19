@@ -33,10 +33,9 @@
 }
 
 .submitControl {
-  align-items: flex-start;
-  align-self: start;
   display: flex;
-  padding-top: 27px;
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 .demoNotice,
@@ -261,7 +260,4 @@
     grid-template-columns: 1fr;
   }
 
-  .submitControl {
-    padding-top: 0;
-  }
 }

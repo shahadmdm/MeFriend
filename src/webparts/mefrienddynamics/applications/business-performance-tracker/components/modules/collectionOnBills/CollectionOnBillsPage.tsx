@@ -70,6 +70,7 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
   const [toDate, setToDate] = React.useState<string>(() => toLocalIsoDate(new Date()));
   const [customerSearch, setCustomerSearch] = React.useState<string>('');
   const [receiptNo, setReceiptNo] = React.useState<string>('');
+  const [invoiceNo, setInvoiceNo] = React.useState<string>('');
 
   const [appliedSelection, setAppliedSelection] =
     React.useState<IAppliedSelection | undefined>();
@@ -228,6 +229,7 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
         toDate,
         customerSearch: customerSearch.trim(),
         receiptNo: receiptNo.trim(),
+        invoiceNo: invoiceNo.trim(),
         branchCodes: selectedBranchCodes
       };
 
@@ -244,7 +246,7 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
     }
   }, [selectedCompanyId, appUserId, unitsLoading, unitError, unitOptions,
       collectionOnBillsApiService, unitAccessService, unitService,
-      selectedCodes, fromDate, toDate, customerSearch, receiptNo]);
+      selectedCodes, fromDate, toDate, customerSearch, receiptNo, invoiceNo]);
 
   const visibleSelection = appliedSelection?.companyId === selectedCompanyId
     ? appliedSelection
@@ -316,7 +318,7 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
       <section className={styles.filterPanel} aria-label="Collection on Bills filters">
         <div className={styles.panelHeading}>
           <h3>Report filters</h3>
-          <p>Select permitted units, a receipt date range and optional customer or receipt filters.</p>
+          <p>Select permitted units, receipt dates and optional customer, receipt or invoice filters.</p>
         </div>
         <div className={styles.filterGrid}>
           <DatePicker
@@ -349,6 +351,13 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
             placeholder="Optional receipt number"
             maxLength={100}
           />
+          <InputField
+            label="Invoice No"
+            value={invoiceNo}
+            onChange={setInvoiceNo}
+            placeholder="Optional invoice number"
+            maxLength={100}
+          />
           <Dropdown
             key={selectedCompanyId}
             label="Units"
@@ -362,7 +371,8 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
             placeholder="Select permitted units"
             onChange={handleUnitSelection}
           />
-          <div className={styles.submitControl}>
+        </div>
+        <div className={styles.submitControl}>
             <Button
               label="Submit"
               variant="primary"
@@ -376,7 +386,6 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
                 });
               }}
             />
-          </div>
         </div>
         {unitError ? (
           <p className={styles.errorMessage} role="alert">{unitError}</p>
@@ -392,7 +401,7 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
         <section className={styles.resultsPanel} aria-label="Collection on Bills results">
           <div className={styles.resultsHeader}>
             <div>
-              <h3>Receipts and Invoices</h3>
+              <h3>Receipt and invoice applications</h3>
               <p>
                 Receipt dates: {displayDate(visibleSelection.fromDate)} to{' '}
                 {displayDate(visibleSelection.toDate)}
@@ -401,6 +410,9 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
                   : ''}
                 {visibleSelection.receiptNo
                   ? ` | Receipt: ${visibleSelection.receiptNo}`
+                  : ''}
+                {visibleSelection.invoiceNo
+                  ? ` | Invoice: ${visibleSelection.invoiceNo}`
                   : ''}
                 {visibleSelection.branchCodes?.length
                   ? ` | Units: ${visibleSelection.branchCodes.join(', ')}`
@@ -447,7 +459,7 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
                     <col style={{ width: showUnitColumn ? '10%' : '12%' }} />
                   </colgroup>
                   <caption className={styles.screenReaderOnly}>
-                    Receipts and invoices for the selected period
+                    Receipts and invoice applications for the selected period
                   </caption>
                   <thead>
                     <tr>

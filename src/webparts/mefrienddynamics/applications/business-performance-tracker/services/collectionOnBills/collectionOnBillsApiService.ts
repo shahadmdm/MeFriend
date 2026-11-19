@@ -30,6 +30,7 @@ export interface ICollectionOnBillsRequest {
   customerSearch?: string;
   branchCodes?: readonly string[];
   receiptNo?: string;
+  invoiceNo?: string;
 }
 
 const isValidDate = (value: string): boolean => {
@@ -66,6 +67,7 @@ export class CollectionOnBillsApiService {
     const customerNo = request.customerNo?.trim() || '';
     const customerSearch = request.customerSearch?.trim() || '';
     const receiptNo = request.receiptNo?.trim() || '';
+    const invoiceNo = request.invoiceNo?.trim() || '';
 
     const branchCodes = request.branchCodes;
     if (
@@ -97,9 +99,10 @@ export class CollectionOnBillsApiService {
       );
     }
 
-    if (customerNo.length > 100 || customerSearch.length > 100 || receiptNo.length > 100) {
+    if (customerNo.length > 100 || customerSearch.length > 100 ||
+        receiptNo.length > 100 || invoiceNo.length > 100) {
       throw new Error(
-        'Customer No and Receipt No must not exceed 100 characters.'
+        'Customer, Receipt No and Invoice No must not exceed 100 characters.'
       );
     }
 
@@ -119,6 +122,10 @@ export class CollectionOnBillsApiService {
 
     if (receiptNo) {
       query.push(`receiptNo=${encodeURIComponent(receiptNo)}`);
+    }
+
+    if (invoiceNo) {
+      query.push(`invoiceNo=${encodeURIComponent(invoiceNo)}`);
     }
 
     for (const code of selectedBranches) {

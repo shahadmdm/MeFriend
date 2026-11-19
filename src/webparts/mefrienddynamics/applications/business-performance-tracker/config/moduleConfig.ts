@@ -8,7 +8,7 @@ import { collectionVerticalReportModuleConfig } from './modules/collectionVertic
 import { collectionOnBillsModuleConfig } from './modules/collectionOnBillsModuleConfig';
 
 // Reuse the existing BC Extension invoice module configuration.
-import { invoicesModuleConfig } from '../../bc-extension/config/modules/invoicesModuleConfig';
+import { invoicesModuleConfig } from '../config/modules/invoicesModuleConfig';
 
 import { unitAccessModuleConfig } from './modules/unitAccessModuleConfig';
 import { modulePermissionsModuleConfig } from './modules/modulePermissionsModuleConfig';
