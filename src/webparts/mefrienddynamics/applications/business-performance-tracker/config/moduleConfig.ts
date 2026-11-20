@@ -6,10 +6,8 @@ import { targetsModuleConfig } from './modules/targetsModuleConfig';
 import { collectionReportModuleConfig } from './modules/collectionReportModuleConfig';
 import { collectionVerticalReportModuleConfig } from './modules/collectionVerticalReportModuleConfig';
 import { collectionOnBillsModuleConfig } from './modules/collectionOnBillsModuleConfig';
-
-// Reuse the existing BC Extension invoice module configuration.
-import { invoicesModuleConfig } from '../../bc-extension/config/modules/invoicesModuleConfig';
-
+import { invoicesModuleConfig } from '../config/modules/invoicesModuleConfig';
+import { chequeEntryModuleConfig } from './modules/chequeEntryModuleConfig';
 import { unitAccessModuleConfig } from './modules/unitAccessModuleConfig';
 import { modulePermissionsModuleConfig } from './modules/modulePermissionsModuleConfig';
 import { settingsModuleConfig } from './modules/settingsModuleConfig';
@@ -20,9 +18,14 @@ const bptInvoicesModuleConfig = {
   order: collectionOnBillsModuleConfig.order + 1
 };
 
+// Place Cheque Entry immediately after Invoices in the BPT sidebar.
+const bptChequeEntryModuleConfig = {
+  ...chequeEntryModuleConfig,
+  order: bptInvoicesModuleConfig.order + 1
+};
+
 // Main sidebar modules only.
 // Settings is accessed through the signed-in user popup.
-
 export const moduleDefinitions = [
   verticalsModuleConfig,
   unitsModuleConfig,
@@ -30,7 +33,8 @@ export const moduleDefinitions = [
   collectionReportModuleConfig,
   collectionVerticalReportModuleConfig,
   collectionOnBillsModuleConfig,
-  bptInvoicesModuleConfig
+  bptInvoicesModuleConfig,
+  bptChequeEntryModuleConfig
 ] as const;
 
 export const routeDefinitions: readonly IAppRouteDefinition[] = [
@@ -91,7 +95,6 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     moduleKey: collectionVerticalReportModuleConfig.key,
     showInNavigation: true
   },
-
   {
     key: 'collectionOnBills',
     path: collectionOnBillsModuleConfig.route,
@@ -112,6 +115,13 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     title: 'Invoice Details',
     moduleKey: bptInvoicesModuleConfig.key,
     showInNavigation: false
+  },
+  {
+    key: 'chequeEntry',
+    path: bptChequeEntryModuleConfig.route,
+    title: bptChequeEntryModuleConfig.title,
+    moduleKey: bptChequeEntryModuleConfig.key,
+    showInNavigation: true
   },
   {
     key: 'unitAccess',
@@ -142,6 +152,7 @@ export {
   collectionVerticalReportModuleConfig,
   collectionOnBillsModuleConfig,
   bptInvoicesModuleConfig,
+  bptChequeEntryModuleConfig,
   unitAccessModuleConfig,
   modulePermissionsModuleConfig,
   settingsModuleConfig

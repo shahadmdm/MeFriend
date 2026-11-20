@@ -1,0 +1,139 @@
+// The shared FormSection uses a multi-column grid. Bill Assign must occupy
+// all columns rather than placing summary, table and button side-by-side.
+.pageActions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin: 0 0 16px;
+  width: 100%;
+}
+.billArea {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  gap: 14px;
+}
+.billActions {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+// The outer form uses the shared Forms.module.scss from Target Master.
+// Only the dynamic Bill Assign area needs module-specific styles.
+.billSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 0;
+  width: 100%;
+  color: #536579;
+  font-size: 13px;
+  strong { color: #243b53; font-weight: 600; }
+
+}
+
+.tableScroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #dce5ef;
+  border-radius: 6px;
+}
+
+.billTable {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 730px;
+  font-size: 13px;
+  th {
+    padding: 11px 10px;
+    text-align: left;
+    font-weight: 600;
+    color: #29445e;
+    background: #f1f5f9;
+    border-bottom: 1px solid #dbe4ef;
+    white-space: nowrap;
+  }
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #edf0f4;
+    background: #fff;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  th:last-child, td:last-child { width: 86px; text-align: center; }
+  input {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 105px;
+    min-height: 36px;
+    padding: 7px 9px;
+    font: inherit;
+    color: #253b52;
+    border: 1px solid #c9d5e1;
+    border-radius: 4px;
+    background: #fff;
+    &:focus { outline: 2px solid rgba(40, 111, 173, .2); border-color: #397eb5; }
+  }
+}
+
+.deleteButton {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 5px;
+  font-weight: 600;
+  &:disabled { opacity: .6; cursor: default; }
+}
+
+.deleteButton {
+  padding: 6px 9px;
+  color: #a52b2b;
+  background: #fff;
+  border: 1px solid #e9c2c2;
+  &:hover:not(:disabled) { background: #fff5f5; }
+}
+
+.error, .success {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.error { color: #942121; background: #fff1f1; border: 1px solid #efbcbc; }
+.success { color: #216d42; background: #ecfaf1; border: 1px solid #b8e2c7; }
+
+// Shared InputField supports text/number but not date in this SPFx project.
+// A native date picker is styled to match the Target Master controls.
+.dateControl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.dateLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334c61;
+  span { color: #b42318; }
+}
+.dateInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid #c9d5e1;
+  border-radius: 5px;
+  background: #fff;
+  color: #253b52;
+  font: inherit;
+  &:focus-visible {
+    outline: 2px solid #397eb5;
+    outline-offset: 1px;
+  }
+}
+.negative { color: #b42318; }

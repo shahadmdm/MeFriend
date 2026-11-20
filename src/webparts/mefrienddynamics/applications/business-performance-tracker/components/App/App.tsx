@@ -95,6 +95,7 @@ import {
 } from '../modules/modulePermissions/BusinessPerformanceModulePermissionsPage';
 import { SettingsPage } from '../modules/settings/SettingsPage';
 import { BptInvoicesRoute } from '../modules/invoices/BptInvoicesRoute';
+import { ChequeEntryPage } from '../modules/ChequeEntry';
 import {
   resolveRoute,
   buildHashHref
@@ -102,6 +103,7 @@ import {
 import styles from '../../../bc-extension/components/App/App.module.scss';
 const sharePointWebAbsoluteUrl =
   appConfig.sharePointSettings.masterDataWebUrl;
+const chequeEntryListTitle = 'Business Performance Cheque Entries';
 type RouteAction = 'view' | 'create' | 'manage';
 interface IRouteAccessRequirement {
   moduleKey: BusinessPerformancePermissionModuleKey;
@@ -153,7 +155,6 @@ const routeAccessRequirements:
       moduleKey: 'bpt.collectionVerticalReport',
       action: 'view'
     },
-
     collectionOnBills: {
       moduleKey: 'bpt.collectionOnBills',
       action: 'view'
@@ -167,12 +168,16 @@ const routeAccessRequirements:
       moduleKey: 'bpt.invoices',
       action: 'view'
     },
-
     unitAccess: {
       moduleKey: 'bpt.unitAccess',
       action: 'manage'
     },
     modulePermissions: {
+      moduleKey: 'bpt.app',
+      action: 'manage'
+    },
+    // Temporary admin-only access until bpt.chequeEntry is configured.
+    chequeEntry: {
       moduleKey: 'bpt.app',
       action: 'manage'
     }
@@ -207,14 +212,12 @@ const getAuthorizedLandingRoute = (
   if (access.canView('bpt.collectionVerticalReport')) {
     return 'collectionVerticalReport';
   }
-
   if (access.canView('bpt.collectionOnBills')) {
     return 'collectionOnBills';
   }
   if (access.canView('bpt.invoices')) {
     return 'invoices';
   }
-
   if (
     access.canManage('bpt.app') ||
     access.canManage('bpt.unitAccess')
@@ -223,10 +226,10 @@ const getAuthorizedLandingRoute = (
   }
   return undefined;
 };
-/**
- * Build the permitted sidebar module list from verified permissions.
- * Route-level permission checks remain independent.
- */
+  /**
+   * Build the permitted sidebar module list from verified permissions.
+   * Route-level permission checks remain independent.
+   */
 const getAllowedModuleKeys = (
   access: IUseBusinessPerformanceAccessResult
 ): readonly string[] => {
@@ -246,14 +249,15 @@ const getAllowedModuleKeys = (
   if (access.canView('bpt.collectionVerticalReport')) {
     allowedModuleKeys.push('collectionVerticalReport');
   }
-
   if (access.canView('bpt.collectionOnBills')) {
     allowedModuleKeys.push('collectionOnBills');
   }
   if (access.canView('bpt.invoices')) {
     allowedModuleKeys.push('invoices');
   }
-
+  if (access.canManage('bpt.app')) {
+    allowedModuleKeys.push('chequeEntry');
+  }
   // Settings is opened from the signed-in user popup.
   // Unit Access and Module Permissions are sections inside Settings.
   if (
@@ -370,7 +374,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
     if (!debugManifest.startsWith('https://localhost:4321/')) {
       return undefined;
     }
-
     const authClient = new AuthClient({
       aadHttpClientFactory,
       httpClient,
@@ -378,10 +381,8 @@ export const App: React.FC<IPortalApplicationProps> = ({
         ...appConfig.backendApi
       }
     });
-
     return new CollectionOnBillsApiService(new ApiClient(authClient));
   }, [aadHttpClientFactory, httpClient]);
-
   const targetService = React.useMemo(
     () =>
       new TargetService({
@@ -617,7 +618,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     // Collection on Bills: receipt-level invoice applications.
     if (route.key === 'collectionOnBills') {
       return (
@@ -630,7 +630,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
     // Invoice and Outstanding Report routes.
     if (route.key === 'invoices' || route.key === 'invoiceDetail') {
       return (
@@ -645,7 +644,27 @@ export const App: React.FC<IPortalApplicationProps> = ({
         />
       );
     }
-
+    // Cheque Entry: saved through SPHttpClient to the configured SharePoint list.
+    if (route.key === 'chequeEntry') {
+      // spHttpClient is optional in IPortalApplicationProps. Do not render
+      // the save form unless SharePoint HTTP access is available.
+      if (!spHttpClient) {
+        return (
+          <div role="alert">
+            Cheque Entry cannot load because the SharePoint HTTP client is unavailable.
+          </div>
+        );
+      }
+      return (
+        <ChequeEntryPage
+          spHttpClient={spHttpClient}
+          webAbsoluteUrl={sharePointWebAbsoluteUrl}
+          selectedCompanyId={selectedCompanyId}
+          unitService={unitService}
+          listTitle={chequeEntryListTitle}
+        />
+      );
+    }
     if (route.key === 'modulePermissions') {
       return (
         <BusinessPerformanceModulePermissionsPage
