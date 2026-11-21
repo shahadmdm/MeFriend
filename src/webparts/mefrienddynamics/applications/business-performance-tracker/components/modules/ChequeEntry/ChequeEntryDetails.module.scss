@@ -1,0 +1,59 @@
+// Cheque Entry read-only details · matching white-card violet table styling.
+$accent: #5529ab;
+$border: #e1e6ef;
+$ink: #241e46;
+$muted: #64748b;
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
+.detailsGrid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 14px;
+  border: 1px solid $border;
+  border-radius: 10px;
+  background: #fff;
+  min-width: 0;
+  span { font-size: 12px; font-weight: 600; color: $muted; }
+  strong { font-size: 14px; font-weight: 700; color: $ink; overflow-wrap: anywhere; }
+}
+.bills {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  width: 100%;
+}
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  font-size: 13px;
+  color: $muted;
+  strong { color: $ink; font-variant-numeric: tabular-nums; }
+}
+.tableScroll { width: 100%; overflow-x: auto; border: 1px solid $border; border-radius: 12px; background: #fff; }
+.billTable {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  th, td { padding: 11px 10px; border-bottom: 1px solid #e7ebf2; text-align: left; vertical-align: middle; white-space: nowrap; }
+  th { color: #433668; background: #f6f4fb; font-size: 12px; font-weight: 700; }
+  td { color: #293043; }
+  tbody tr:hover td { background: #faf9fd; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td:nth-child(n + 3) { text-align: right; font-variant-numeric: tabular-nums; }
+}
+.warning { margin: 0; padding: 10px 12px; border: 1px solid #f1d8a4; border-radius: 8px; background: #fffaf0; color: #75500d; font-size: 12px; line-height: 1.5; }
+@media (max-width: 600px) { .detailsGrid { grid-template-columns: minmax(0, 1fr); } }

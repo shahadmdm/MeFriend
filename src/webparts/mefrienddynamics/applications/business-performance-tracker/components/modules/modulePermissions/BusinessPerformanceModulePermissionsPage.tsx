@@ -39,6 +39,7 @@ const candidateModules: readonly { key: string; label: string }[] = [
   { key: 'bpt.collectionVerticalReport', label: 'Collection Report' },
   { key: 'bpt.collectionOnBills', label: 'Collection on Bills' },
   { key: 'bpt.invoices', label: 'Invoices' },
+  { key: 'bpt.chequeEntry', label: 'Cheque Entry' },
   { key: 'bpt.unitAccess', label: 'Unit Access' }
 ];
 

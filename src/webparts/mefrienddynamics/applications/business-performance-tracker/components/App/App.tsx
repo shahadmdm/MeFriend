@@ -178,8 +178,8 @@ const routeAccessRequirements:
     },
     // Temporary admin-only access until bpt.chequeEntry is configured.
     chequeEntry: {
-      moduleKey: 'bpt.app',
-      action: 'manage'
+      moduleKey: 'bpt.chequeEntry',
+      action: 'view'
     }
   };
 const hasRoutePermission = (
@@ -218,6 +218,9 @@ const getAuthorizedLandingRoute = (
   if (access.canView('bpt.invoices')) {
     return 'invoices';
   }
+  if (access.canView('bpt.chequeEntry')) {
+    return 'chequeEntry';
+  }
   if (
     access.canManage('bpt.app') ||
     access.canManage('bpt.unitAccess')
@@ -255,7 +258,7 @@ const getAllowedModuleKeys = (
   if (access.canView('bpt.invoices')) {
     allowedModuleKeys.push('invoices');
   }
-  if (access.canManage('bpt.app')) {
+  if (access.canView('bpt.chequeEntry')) {
     allowedModuleKeys.push('chequeEntry');
   }
   // Settings is opened from the signed-in user popup.
@@ -661,6 +664,10 @@ export const App: React.FC<IPortalApplicationProps> = ({
           webAbsoluteUrl={sharePointWebAbsoluteUrl}
           selectedCompanyId={selectedCompanyId}
           unitService={unitService}
+          unitAccessService={unitAccessService}
+          appUserId={access.appUserId}
+          canCreate={access.canCreate('bpt.chequeEntry')}
+          canManage={access.canManage('bpt.chequeEntry')}
           listTitle={chequeEntryListTitle}
         />
       );

@@ -1,3 +1,4 @@
+
 export const businessPerformancePermissionListTitle =
   'Business Performance App User Permissions';
 
@@ -22,6 +23,7 @@ export const businessPerformancePermissionModuleKeys = [
   'bpt.collectionVerticalReport',
   'bpt.collectionOnBills',
   'bpt.invoices',
+  'bpt.chequeEntry',
   'bpt.unitAccess'
 ] as const;
 
@@ -40,6 +42,7 @@ export const businessPerformancePermissionModuleLabels:
     'bpt.collectionVerticalReport': 'Collection Vertical Report',
     'bpt.collectionOnBills': 'Collection on Bills',
     'bpt.invoices': 'Invoices Report',
+    'bpt.chequeEntry': 'Cheque Entry',
     'bpt.unitAccess': 'Unit Access'
   };
 

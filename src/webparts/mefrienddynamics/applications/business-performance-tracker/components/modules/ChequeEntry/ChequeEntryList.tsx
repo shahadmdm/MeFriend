@@ -18,10 +18,34 @@ export interface IChequeEntryListProps {
   error: string;
   hasMore: boolean;
   canAdd: boolean;
+  /** Edit permission is independent of Create. */
+  canEdit: boolean;
   branchWarning?: string;
   onRefresh: () => void;
   onAdd: () => void;
+  /** Full read-only details for selected SharePoint cheque. */
+  onView: (entry: IChequeEntryListItem) => void;
+  /** Open prefilled form, updating the existing list item on save. */
+  onEdit: (entry: IChequeEntryListItem) => void;
 }
+
+// Pencil artwork matched to the Unit Master edit button in the supplied
+// reference image. Transparent icon only; existing button border/styles remain.
+const unitMasterEditIcon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA1ElEQVR42tXTMUuCURTG8Z/aFC0N1fASgpNgcyChSQSBtLi4iODQx0gcxaa+S0PRYkEOLdGXaMrBwc0GlzvcwVdeEQLPeu//ec5zz7m56nXbNpW3Zf2LwBkWeFh1WDgtVdbBCZ5xhItg+Ja1gwTv+MMJfnCP8ywCCSYBrqOPA7zgKb64twIuBuc5Ghigh0t8hTipAsXgPEMNI3RwFWD4TYsQw/UIvsFn2kPFHTxiH3cYoosmPtaNKRYo4zCMbYFbjDdZpFrI940WXrNsYtzBFMe795mWwrEjhyk52/QAAAAASUVORK5CYII=';
+
+interface IChequeListFilters {
+  searchText: string;
+  branchFilter: string;
+  fromDate: string;
+  toDate: string;
+}
+
+const defaultFilters: IChequeListFilters = {
+  searchText: '',
+  branchFilter: '__ALL__',
+  fromDate: '',
+  toDate: ''
+};
 
 const pageSize = 20;
 const dateOnly = (value: string): string => value ? value.substring(0, 10) : '';
@@ -44,16 +68,41 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
   error,
   hasMore,
   canAdd,
+  canEdit,
   branchWarning,
   onRefresh,
-  onAdd
+  onAdd,
+  onView,
+  onEdit
 }) => {
-  const [searchText, setSearchText] = React.useState('');
-  const [branchFilter, setBranchFilter] = React.useState('__ALL__');
-  const [fromDate, setFromDate] = React.useState('');
-  const [toDate, setToDate] = React.useState('');
+  // Draft values only change the fields. The table uses appliedFilters.
+  const [draftFilters, setDraftFilters] = React.useState<IChequeListFilters>(
+    () => ({ ...defaultFilters })
+  );
+  const [appliedFilters, setAppliedFilters] = React.useState<IChequeListFilters>(
+    () => ({ ...defaultFilters })
+  );
+  const [filterError, setFilterError] = React.useState<string | undefined>();
   const [pageIndex, setPageIndex] = React.useState(0);
-  const [selectedEntryId, setSelectedEntryId] = React.useState<number | undefined>();
+
+  const handleApplyFilters = React.useCallback((): void => {
+    if (draftFilters.fromDate && draftFilters.toDate &&
+        draftFilters.fromDate > draftFilters.toDate) {
+      setFilterError('Entry Date From must be on or before Entry Date To.');
+      return;
+    }
+
+    setFilterError(undefined);
+    setAppliedFilters({ ...draftFilters });
+    setPageIndex(0);
+  }, [draftFilters]);
+
+  const handleClearFilters = React.useCallback((): void => {
+    setDraftFilters({ ...defaultFilters });
+    setAppliedFilters({ ...defaultFilters });
+    setFilterError(undefined);
+    setPageIndex(0);
+  }, []);
 
   const branchOptions = React.useMemo<readonly ILookupOption[]>(() => [
     { key: '__ALL__', value: '__ALL__', text: 'All branches' },
@@ -74,25 +123,25 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
     branchNameByCode.get(code.trim().toUpperCase()) || code || '—';
 
   const filtered = React.useMemo(() => {
-    const query = searchText.trim().toLowerCase();
+    const query = appliedFilters.searchText.trim().toLowerCase();
     return entries.filter(item => {
       const date = dateOnly(item.entryDate);
-      const branchMatches = branchFilter === '__ALL__' ||
-        item.branchId.trim().toUpperCase() === branchFilter.trim().toUpperCase();
-      const datesMatch = (!fromDate || date >= fromDate) &&
-        (!toDate || date <= toDate);
+      const branchMatches = appliedFilters.branchFilter === '__ALL__' ||
+        item.branchId.trim().toUpperCase() ===
+        appliedFilters.branchFilter.trim().toUpperCase();
+      const datesMatch = (!appliedFilters.fromDate || date >= appliedFilters.fromDate) &&
+        (!appliedFilters.toDate || date <= appliedFilters.toDate);
       const textMatches = !query || [
         item.chequeNo, item.bank, item.branchId,
         branchNameByCode.get(item.branchId.trim().toUpperCase()) || ''
       ].some(value => value.toLowerCase().indexOf(query) !== -1);
       return branchMatches && datesMatch && textMatches;
     });
-  }, [entries, searchText, branchFilter, fromDate, toDate, branchNameByCode]);
+  }, [entries, appliedFilters, branchNameByCode]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePageIndex = Math.min(pageIndex, pages - 1);
   const visible = filtered.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize);
-  const selected = entries.find(entry => entry.id === selectedEntryId);
   const totalAmount = filtered.reduce((sum, entry) => sum + entry.amount, 0);
   const totalAssigned = filtered.reduce((sum, entry) => sum + entry.totalAllocated, 0);
   const totalUnallocated = filtered.reduce((sum, entry) => sum + entry.unallocated, 0);
@@ -100,7 +149,7 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
   return (
     <PageContainer
       title="Cheque Entry"
-      description="Saved cheque entries for the selected company. Click a cheque number to view bill assignments."
+      description="Saved cheque entries for the selected company. Click a cheque number to view full details."
     >
       <div className={styles.layout}>
         <section className={styles.filterPanel} aria-label="Cheque entry filters">
@@ -127,21 +176,22 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
           <div className={styles.filters}>
             <InputField
               label="Search"
-              value={searchText}
+              value={draftFilters.searchText}
               placeholder="Cheque number, bank or branch"
               onChange={value => {
-                setSearchText(value);
-                setPageIndex(0);
+                setDraftFilters(current => ({ ...current, searchText: value }));
               }}
             />
             <Dropdown
               label="Branch"
               options={branchOptions}
-              value={branchFilter}
+              value={draftFilters.branchFilter}
               searchable
               onChange={value => {
-                setBranchFilter(typeof value === 'string' ? value : '__ALL__');
-                setPageIndex(0);
+                setDraftFilters(current => ({
+                  ...current,
+                  branchFilter: typeof value === 'string' ? value : '__ALL__'
+                }));
               }}
             />
             <div className={styles.dateFilter}>
@@ -152,10 +202,10 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
                 id="cheque-list-from-date"
                 className={styles.dateFilterInput}
                 type="date"
-                value={fromDate}
+                value={draftFilters.fromDate}
                 onChange={event => {
-                  setFromDate(event.currentTarget.value);
-                  setPageIndex(0);
+                  const value = event.currentTarget.value;
+                  setDraftFilters(current => ({ ...current, fromDate: value }));
                 }}
               />
             </div>
@@ -167,14 +217,32 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
                 id="cheque-list-to-date"
                 className={styles.dateFilterInput}
                 type="date"
-                value={toDate}
+                value={draftFilters.toDate}
                 onChange={event => {
-                  setToDate(event.currentTarget.value);
-                  setPageIndex(0);
+                  const value = event.currentTarget.value;
+                  setDraftFilters(current => ({ ...current, toDate: value }));
                 }}
               />
             </div>
           </div>
+          <div
+            className={styles.actions}
+            style={{ justifyContent: 'flex-end', marginTop: 16 }}
+          >
+            <Button
+              label="Clear"
+              onClick={handleClearFilters}
+            />
+            <Button
+              label="Apply"
+              variant="primary"
+              onClick={handleApplyFilters}
+              disabled={loading}
+            />
+          </div>
+          {filterError ? (
+            <p className={styles.warning} role="alert">{filterError}</p>
+          ) : null}
           {branchWarning ? (
             <p className={styles.warning} role="alert">{branchWarning}</p>
           ) : null}
@@ -237,6 +305,7 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
                       <th className={styles.numeric} scope="col">Allocated</th>
                       <th className={styles.numeric} scope="col">Unallocated</th>
                       <th className={styles.numeric} scope="col">Bills</th>
+                      <th className={styles.actionsHeading} scope="col">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -247,8 +316,8 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
                           <button
                             type="button"
                             className={styles.chequeLink}
-                            onClick={() => setSelectedEntryId(item.id)}
-                            aria-label={'View bill assignments for cheque ' + item.chequeNo}
+                            onClick={() => onView(item)}
+                            aria-label={'View details for cheque ' + item.chequeNo}
                           >{item.chequeNo || '—'}</button>
                         </td>
                         <td>{formatDate(item.entryDate)}</td>
@@ -259,6 +328,43 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
                         <td className={styles.numeric}>{money(item.totalAllocated)}</td>
                         <td className={styles.numeric}>{money(item.unallocated)}</td>
                         <td className={styles.numeric}>{item.billCount}</td>
+                        <td className={styles.actionCell}>
+                          <div className={styles.actionButtons}>
+                          <button
+                            type="button"
+                            className={styles.rowAction}
+                            onClick={() => onView(item)}
+                            aria-label={'View details for cheque ' + item.chequeNo}
+                            title="View Details"
+                          >
+                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"
+                              stroke="currentColor" strokeWidth="1.8"
+                              strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.rowAction}
+                            disabled={!canEdit || item.billsReadError ||
+                              !branches.some(branch => branch.id === item.branchId)}
+                            onClick={() => onEdit(item)}
+                            aria-label={'Edit cheque ' + item.chequeNo}
+                            title="Edit Cheque"
+                          >
+                            <img
+                              src={unitMasterEditIcon}
+                              alt=""
+                              aria-hidden="true"
+                              width={16}
+                              height={16}
+                              draggable={false}
+                              style={{ display: 'block', width: 16, height: 16, pointerEvents: 'none' }}
+                            />
+                          </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -278,40 +384,6 @@ export const ChequeEntryList: React.FC<IChequeEntryListProps> = ({
           )}
         </section>
 
-        {selected ? (
-          <section className={styles.detailPanel} aria-label="Bill assignment details">
-            <div className={styles.detailHeader}>
-              <div>
-                <h3>Bill Assign — {selected.chequeNo}</h3>
-                <p>{branchName(selected.branchId)} · {formatDate(selected.entryDate)} · {money(selected.amount)}</p>
-              </div>
-              <button type="button" onClick={() => setSelectedEntryId(undefined)}>Close</button>
-            </div>
-            {selected.billsReadError ? (
-              <div className={styles.error} role="alert">Some saved bill details could not be read. Please inspect the SharePoint record.</div>
-            ) : null}
-            {selected.bills.length ? (
-              <div className={styles.tableScroll}>
-                <table className={styles.table}>
-                  <thead><tr>
-                    <th scope="col">No.</th><th scope="col">Bill</th>
-                    <th scope="col">Bill Amount</th><th scope="col">Balance at Entry</th>
-                    <th scope="col">Assigned</th>
-                  </tr></thead>
-                  <tbody>
-                    {selected.bills.map((bill, index) => (
-                      <tr key={String(selected.id) + ':' + String(index)}>
-                        <td>{index + 1}</td><td>{bill.billNo}</td>
-                        <td>{money(bill.billAmount)}</td><td>{money(bill.balance)}</td>
-                        <td>{money(bill.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <div className={styles.state}>No readable bill assignments.</div>}
-          </section>
-        ) : null}
       </div>
     </PageContainer>
   );

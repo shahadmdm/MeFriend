@@ -14,6 +14,8 @@ export interface IChequeEntrySharePointServiceOptions {
 
 export interface IChequeEntryListItem {
   id: number;
+  /** SharePoint ETag required for safe, conditional editing. */
+  etag?: string;
   companyId: string;
   branchId: string;
   entryDate: string;
@@ -35,6 +37,9 @@ export interface IChequeEntryListResult {
 
 interface ISharePointChequeItem {
   Id?: number;
+  '@odata.etag'?: string;
+  'odata.etag'?: string;
+  __metadata?: { etag?: string };
   CompanyId?: string;
   BranchId?: string;
   EntryDate?: string;
@@ -80,6 +85,47 @@ export class ChequeEntrySharePointService {
   }
 
 
+  private static mapItem(
+    item: ISharePointChequeItem,
+    etag?: string
+  ): IChequeEntryListItem {
+    let bills: readonly IChequeBill[] = [];
+    let billsReadError = false;
+    try {
+      const decoded: unknown = JSON.parse(item.BillsJson || '[]');
+      if (!Array.isArray(decoded)) {
+        billsReadError = true;
+      } else {
+        bills = decoded.filter((bill: IChequeBill) =>
+          bill && typeof bill.billNo === 'string' &&
+          typeof bill.billAmount === 'number' &&
+          typeof bill.balance === 'number' &&
+          typeof bill.amount === 'number'
+        );
+        billsReadError = bills.length !== decoded.length;
+      }
+    } catch {
+      billsReadError = true;
+    }
+    return {
+      id: Number(item.Id || 0),
+      etag: etag || item['@odata.etag'] || item['odata.etag'] ||
+        (item.__metadata && item.__metadata.etag) || undefined,
+      companyId: item.CompanyId || '',
+      branchId: item.BranchId || '',
+      entryDate: item.EntryDate || '',
+      chequeNo: item.ChequeNo || '',
+      chequeDate: item.ChequeDate || '',
+      bank: item.Bank || '',
+      amount: Number(item.Amount || 0),
+      totalAllocated: Number(item.TotalAllocated || 0),
+      unallocated: Number(item.Unallocated || 0),
+      billCount: Number(item.BillCount || 0),
+      bills,
+      billsReadError
+    };
+  }
+
   private getItemsUrl(): string {
     const escapedTitle = this.listTitle.replace(/'/g, "''");
     return this.webAbsoluteUrl +
@@ -92,7 +138,8 @@ export class ChequeEntrySharePointService {
    * Index CompanyId in SharePoint for lists above the view threshold.
    */
   public async getEntriesForCompany(
-    selectedCompanyId: string
+    selectedCompanyId: string,
+    allowedBranchCodes?: readonly string[]
   ): Promise<IChequeEntryListResult> {
     const companyId = selectedCompanyId.trim();
     if (!companyId) {
@@ -105,7 +152,18 @@ export class ChequeEntrySharePointService {
       'Unallocated', 'BillCount', 'BillsJson'
     ].join(',');
     const escapedCompany = companyId.replace(/'/g, "''");
-    const filter = encodeURIComponent("CompanyId eq '" + escapedCompany + "'");
+    // When unit-scoped, include the authorized BranchIds in the OData query.
+    // No assigned units must never fall back to a company-wide query.
+    const allowedNormalized = allowedBranchCodes === undefined ? undefined :
+      new Set(allowedBranchCodes.map(code => code.trim().toUpperCase()).filter(Boolean));
+    if (allowedNormalized && allowedNormalized.size === 0) {
+      return { entries: [], hasMore: false };
+    }
+    const unitFilter = allowedBranchCodes === undefined ? '' :
+      ' and (' + Array.from(new Set(allowedBranchCodes.map(code => code.trim())
+        .filter(Boolean))).map(code => "BranchId eq '" + code.replace(/'/g, "''") + "'")
+        .join(' or ') + ')';
+    const filter = encodeURIComponent("CompanyId eq '" + escapedCompany + "'" + unitFilter);
     let url: string | undefined = this.getItemsUrl() +
       '?$select=' + select + '&$filter=' + filter +
       '&$orderby=Id%20desc&$top=100';
@@ -141,42 +199,13 @@ export class ChequeEntrySharePointService {
       items.forEach(item => {
         // Defence in depth: reject rows for another company even if
         // SharePoint returns an unexpectedly broad result.
-        if ((item.CompanyId || '').trim().toLowerCase() !== companyId.toLowerCase()) {
+        if ((item.CompanyId || '').trim().toLowerCase() !== companyId.toLowerCase() ||
+            (allowedNormalized && !allowedNormalized.has(
+              (item.BranchId || '').trim().toUpperCase()
+            ))) {
           return;
         }
-        let bills: readonly IChequeBill[] = [];
-        let billsReadError = false;
-        try {
-          const decoded: unknown = JSON.parse(item.BillsJson || '[]');
-          if (!Array.isArray(decoded)) {
-            billsReadError = true;
-          } else {
-            bills = decoded.filter((bill: IChequeBill) =>
-              bill && typeof bill.billNo === 'string' &&
-              typeof bill.billAmount === 'number' &&
-              typeof bill.balance === 'number' &&
-              typeof bill.amount === 'number'
-            );
-            billsReadError = bills.length !== decoded.length;
-          }
-        } catch {
-          billsReadError = true;
-        }
-        rows.push({
-          id: Number(item.Id || 0),
-          companyId: item.CompanyId || '',
-          branchId: item.BranchId || '',
-          entryDate: item.EntryDate || '',
-          chequeNo: item.ChequeNo || '',
-          chequeDate: item.ChequeDate || '',
-          bank: item.Bank || '',
-          amount: Number(item.Amount || 0),
-          totalAllocated: Number(item.TotalAllocated || 0),
-          unallocated: Number(item.Unallocated || 0),
-          billCount: Number(item.BillCount || 0),
-          bills,
-          billsReadError
-        });
+        rows.push(ChequeEntrySharePointService.mapItem(item));
       });
 
       url = result['odata.nextLink'] || result['@odata.nextLink'] ||
@@ -189,10 +218,49 @@ export class ChequeEntrySharePointService {
     };
   }
 
-  public async save(
+  /** Load the current item and ETag, and verify the selected company. */
+  public async getEntryForCompany(
+    itemId: number,
+    selectedCompanyId: string
+  ): Promise<IChequeEntryListItem> {
+    if (!Number.isSafeInteger(itemId) || itemId <= 0 ||
+        !selectedCompanyId || !selectedCompanyId.trim()) {
+      throw new Error('Invalid cheque entry or selected company.');
+    }
+    const select = [
+      'Id', 'CompanyId', 'BranchId', 'EntryDate', 'ChequeNo',
+      'ChequeDate', 'Bank', 'Amount', 'TotalAllocated',
+      'Unallocated', 'BillCount', 'BillsJson'
+    ].join(',');
+    const url = this.getItemsUrl() + '(' + itemId + ')?$select=' + select;
+    const response = await this.spHttpClient.get(
+      url,
+      SPHttpClient.configurations.v1,
+      { headers: { Accept: 'application/json;odata=nometadata' } }
+    );
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error('Unable to open cheque entry (HTTP ' + response.status + '): ' +
+        (body || response.statusText).slice(0, 800));
+    }
+    const item = await response.json() as ISharePointChequeItem;
+    if ((item.CompanyId || '').trim().toLowerCase() !==
+        selectedCompanyId.trim().toLowerCase()) {
+      throw new Error('This cheque does not belong to the selected company.');
+    }
+    const etagFromHeaders = response.headers.get('ETag') || undefined;
+    return ChequeEntrySharePointService.mapItem(item, etagFromHeaders);
+  }
+
+  private static buildBody(
     entry: IChequeEntryPayload,
     selectedCompanyId: string
-  ): Promise<number> {
+  ): {
+    Title: string; CompanyId: string; BranchId: string;
+    EntryDate: string; ChequeNo: string; ChequeDate: string;
+    Bank: string; Amount: number; BillsJson: string;
+    TotalAllocated: number; Unallocated: number; BillCount: number;
+  } {
     if (!selectedCompanyId || !selectedCompanyId.trim()) {
       throw new Error('Select an active company before saving a cheque.');
     }
@@ -222,7 +290,7 @@ export class ChequeEntrySharePointService {
       throw new Error('Too many bill assignments for a single SharePoint list item.');
     }
 
-    const body = {
+    return {
       Title: entry.chequeNo.trim(),
       CompanyId: selectedCompanyId.trim(),
       BranchId: entry.branchId.trim(),
@@ -236,6 +304,14 @@ export class ChequeEntrySharePointService {
       Unallocated: Math.round((entry.amount - allocated) * 100) / 100,
       BillCount: entry.bills.length
     };
+
+  }
+
+  public async save(
+    entry: IChequeEntryPayload,
+    selectedCompanyId: string
+  ): Promise<number> {
+    const body = ChequeEntrySharePointService.buildBody(entry, selectedCompanyId);
 
     const url = this.getItemsUrl();
 
@@ -265,5 +341,53 @@ export class ChequeEntrySharePointService {
       throw new Error('SharePoint returned no item ID. Check the list for the entry before retrying.');
     }
     return itemId;
+  }
+
+  /**
+   * Update the SAME list item, not a new item. If-Match rejects stale edits.
+   * SharePoint ACLs must independently grant Edit Items permission.
+   */
+  public async update(
+    original: IChequeEntryListItem,
+    entry: IChequeEntryPayload,
+    selectedCompanyId: string
+  ): Promise<void> {
+    if (!Number.isSafeInteger(original.id) || original.id <= 0) {
+      throw new Error('Invalid SharePoint cheque entry ID.');
+    }
+    if (!selectedCompanyId ||
+        original.companyId.trim().toLowerCase() !== selectedCompanyId.trim().toLowerCase()) {
+      throw new Error('The cheque does not belong to the selected company.');
+    }
+    if (!original.etag || original.etag === '*') {
+      throw new Error('SharePoint version information is missing. Refresh and reopen the cheque.');
+    }
+    if (original.billsReadError) {
+      throw new Error('Saved bill data cannot be read safely. Edit is blocked.');
+    }
+
+    const body = ChequeEntrySharePointService.buildBody(entry, selectedCompanyId);
+    const url = this.getItemsUrl() + '(' + original.id + ')';
+    const response = await this.spHttpClient.post(
+      url,
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          Accept: 'application/json;odata=nometadata',
+          'Content-Type': 'application/json;odata=nometadata',
+          'IF-MATCH': original.etag,
+          'X-HTTP-Method': 'MERGE'
+        },
+        body: JSON.stringify(body)
+      }
+    );
+    if (!response.ok) {
+      if (response.status === 412) {
+        throw new Error('Another user changed this cheque. Refresh the list before editing again.');
+      }
+      const responseText = await response.text();
+      throw new Error('SharePoint update failed (HTTP ' + response.status + '): ' +
+        (responseText || response.statusText).slice(0, 800));
+    }
   }
 }

@@ -1,83 +1,233 @@
-.layout { display: grid; gap: 18px; width: 100%; min-width: 0; color: #293f54; }
-.filterPanel, .tableShell, .detailPanel {
-  border: 1px solid #dce5ef;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(25, 52, 83, .04);
+// Cheque Entry listing · white cards + violet accents.
+// Matches the supplied reference while preserving all TSX CSS-module class names.
+$ink: #241e46;
+$accent: #5529ab;
+$accent-soft: #f6f4fb;
+$border: #e1e6ef;
+$muted: #64748b;
+
+.layout {
+  display: grid;
+  gap: 18px;
+  width: 100%;
   min-width: 0;
-}
-.filterPanel { padding: 18px 20px; }
-.toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap;
-  h3 { font-size: 17px; margin: 0 0 5px; color: #244a69; }
-  p { margin: 0; color: #61758b; font-size: 13px; }
-}
-.actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.filters { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; margin-top: 18px; }
-.warning { padding: 10px 12px; background: #fff8e7; border: 1px solid #f2deb4; color: #815d24; border-radius: 5px; font-size: 12px; margin: 12px 0 0; }
-.error { padding: 12px 14px; background: #fff0f0; color: #9d2525; border: 1px solid #eac0c0; border-radius: 6px; font-size: 13px; }
-.summaryGrid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; }
-.summaryItem {
-  border: 1px solid #dce5ef; border-radius: 7px; padding: 14px 16px; background: #fff;
-  display: flex; flex-direction: column; gap: 7px;
-  span { color: #62758a; font-size: 12px; }
-  strong { color: #263e55; font-size: 18px; overflow-wrap: anywhere; }
-}
-.tableHeader { background: #f8fafc; border-bottom: 1px solid #dce5ef; padding: 12px 15px; display: flex;
-  flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
-  strong { color: #2e516c; font-size: 14px; }
-}
-.count { font-size: 11px; color: #66829a; margin-left: 8px; font-weight: 500; }
-.hint { color: #7a8ea0; font-size: 11px; }
-.tableScroll { overflow: auto; width: 100%; max-width: 100%; }
-.table { width: 100%; min-width: 1040px; border-collapse: separate; border-spacing: 0; font-size: 12.5px;
-  th { background: #eaf1f7; border-bottom: 1px solid #ccdbe8; padding: 12px 10px; text-align: left;
-    color: #2e506d; white-space: nowrap; font-weight: 650; }
-  td { padding: 11px 10px; background: #fff; border-bottom: 1px solid #e8edf2; vertical-align: middle; }
-  tbody tr:hover td { background: #f7fbfe; }
-  tbody tr:last-child td { border-bottom: 0; }
-}
-.numeric { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.stickyNumber { position: sticky; left: 0; z-index: 2; min-width: 36px; width: 36px; }
-.stickyIdentity { position: sticky; left: 56px; z-index: 2; min-width: 125px; }
-.table th.stickyNumber, .table th.stickyIdentity { z-index: 3; background: #e5eef7; }
-.chequeLink { border: 0; background: none; padding: 0; font: inherit; color: #226b9d; font-weight: 650; text-decoration: underline;
-  cursor: pointer; text-underline-offset: 2px;
-}
-.state { text-align: center; padding: 30px 14px; color: #6b7d90; font-size: 13px; }
-.pagination { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; flex-wrap: wrap; border-top: 1px solid #e8edf2; font-size: 12px; color: #566c80;
-  button { padding: 6px 11px; cursor: pointer; border-radius: 4px; border: 1px solid #c5d4e1; color: #315d7e; background: #fff; margin: 0 4px;
-    &:disabled { opacity: .4; cursor: default; }
-  }
-}
-.detailPanel { padding-bottom: 12px; }
-.detailHeader { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; align-items: start; padding: 16px;
-  h3 { margin: 0 0 5px; color: #2e526c; font-size: 16px; }
-  p { margin: 0; color: #60778a; font-size: 12px; }
-  button { border-radius: 5px; padding: 7px 11px; background: #f2f5f8; border: 1px solid #cbd8e3; cursor: pointer; }
-}
-.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
-@media (max-width: 900px) {
-  .filters, .summaryGrid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
-}
-@media (max-width: 540px) {
-  .filters, .summaryGrid { grid-template-columns: minmax(0, 1fr); }
-  .filterPanel { padding: 14px; }
-  .summaryItem strong { font-size: 16px; }
+  color: $ink;
 }
 
-// Native date controls are required by this project's InputFieldType union.
+.filterPanel, .tableShell {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid $border;
+  border-radius: 12px;
+  box-shadow: 0 1px 6px rgba(20, 33, 61, .045);
+}
+
+.filterPanel { padding: 18px; }
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  h3 { margin: 0; font-size: 17px; color: $ink; }
+  p { margin: 5px 0 0; color: $muted; font-size: 12px; line-height: 1.5; }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  // Toolbar uses the application's shared Button component.
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+  min-width: 0;
+}
+
 .dateFilter { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.dateFilterLabel { font-size: 13px; font-weight: 600; color: #334c61; }
+.dateFilterLabel { color: #4c5364; font-size: 12px; font-weight: 600; }
 .dateFilterInput {
-  box-sizing: border-box;
   width: 100%;
+  box-sizing: border-box;
+  height: 38px;
   min-height: 38px;
-  padding: 7px 10px;
-  border: 1px solid #c9d5e1;
+  padding: 7px 9px;
+  border: 1px solid #d3dae6;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: #1e293b;
+  &:focus-visible { outline: 2px solid #b8a4f5; outline-offset: 1px; }
+}
+
+.warning {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f1d8a4;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #75500d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.error {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #f0b3b3;
+  border-radius: 8px;
+  background: #fff4f4;
+  color: #941e1e;
+  font-size: 13px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 15px 16px;
+  border: 1px solid $border;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(20,33,61,.035);
+  span { color: $muted; font-size: 12px; font-weight: 500; }
+  strong { font-size: 19px; font-weight: 700; color: $ink; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+}
+
+.tableShell { overflow: hidden; }
+.tableHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid $border;
+  background: #fff;
+  strong { color: $ink; font-size: 16px; }
+}
+.count { color: $muted; font-size: 12px; font-weight: 500; margin-left: 8px; }
+.hint { color: $muted; font-size: 12px; }
+.tableScroll { width: 100%; max-width: 100%; overflow-x: auto; }
+
+.table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+
+  th, td {
+    padding: 11px 10px;
+    border-bottom: 1px solid #e7ebf2;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  th {
+    background: $accent-soft;
+    color: #433668;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  td { color: #293043; background: #fff; }
+  tbody tr:hover td { background: #faf9fd; }
+  tbody tr:last-child td { border-bottom: none; }
+}
+.numeric { text-align: right !important; font-variant-numeric: tabular-nums; }
+
+// Keep the original frozen invoice number and row number columns.
+.stickyNumber { position: sticky; left: 0; z-index: 2; min-width: 36px; width: 36px; }
+.stickyIdentity { position: sticky; left: 56px; z-index: 2; min-width: 125px; }
+.table th.stickyNumber, .table th.stickyIdentity { z-index: 3; background: $accent-soft; }
+
+.chequeLink {
+  border: 0;
+  padding: 0;
+  color: $accent;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid #b8a4f5; outline-offset: 2px; }
+}
+
+.actionsHeading { text-align: center !important; }
+.actionCell { text-align: center !important; white-space: nowrap; min-width: 76px; }
+.actionButtons { display: inline-flex; justify-content: center; align-items: center; gap: 6px; }
+.rowAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  min-width: 27px;
+  min-height: 27px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #d6deea;
   border-radius: 5px;
   background: #fff;
-  color: #253b52;
-  font: inherit;
-  &:focus-visible { outline: 2px solid #397eb5; outline-offset: 1px; }
+  color: #26364a;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+  svg { display: block; width: 15px; height: 15px; pointer-events: none; }
+  &:hover:not(:disabled) { background: #f6f8fc; border-color: #a9b6c9; }
+  &:disabled { opacity: .45; cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid #8e70ce; outline-offset: 2px; }
+}
+.state { margin: 18px 0; padding: 18px; text-align: center; color: $muted; font-size: 13px; }
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 13px 18px;
+  border-top: 1px solid $border;
+  font-size: 12px;
+  color: $muted;
+  button {
+    margin: 0 4px;
+    padding: 8px 11px;
+    border: 1px solid #c7cfdc;
+    border-radius: 7px;
+    background: #fff;
+    color: #292341;
+    font-size: 12px;
+    cursor: pointer;
+    &:hover:not(:disabled) { color: $accent; border-color: #b8a4f5; background: $accent-soft; }
+    &:disabled { opacity: .45; cursor: not-allowed; }
+    &:focus-visible { outline: 2px solid #b8a4f5; outline-offset: 1px; }
+  }
+}
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+@media (max-width: 960px) {
+  .summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .filterPanel { padding: 12px; }
+  .summaryGrid { grid-template-columns: minmax(0, 1fr); }
+  .tableHeader { padding: 12px; }
+  .summaryItem strong { font-size: 17px; }
+  .pagination { padding: 12px; }
 }

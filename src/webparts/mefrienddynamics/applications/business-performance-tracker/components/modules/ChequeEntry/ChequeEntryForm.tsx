@@ -37,8 +37,21 @@ export interface IChequeEntryPayload {
   bills: IChequeBill[];
 }
 
+export interface IChequeEntryInitialValues {
+  branchId: string;
+  entryDate: string;
+  chequeNo: string;
+  chequeDate: string;
+  bank: string;
+  amount: number;
+  bills: readonly IChequeBill[];
+}
+
 export interface IChequeEntryFormProps {
   branches: IBranchOption[];
+  /** Existing SharePoint item for editing; omitted when creating. */
+  initialEntry?: IChequeEntryInitialValues;
+  editing?: boolean;
   onSave: (entry: IChequeEntryPayload) => Promise<void> | void;
   /** Called after SharePoint confirms the save and the success toast is shown. */
   onSaved?: () => void;
@@ -95,17 +108,40 @@ export const ChequeEntryForm: React.FC<IChequeEntryFormProps> = ({
   branches,
   onSave,
   onSaved,
-  onBack
+  onBack,
+  initialEntry,
+  editing = false
 }) => {
   const toast = useToast();
-  const [branchId, setBranchId] = React.useState<string>('');
-  const [entryDate, setEntryDate] = React.useState<string>(localToday());
-  const [chequeNo, setChequeNo] = React.useState<string>('');
-  const [chequeDate, setChequeDate] = React.useState<string>('');
-  const [bank, setBank] = React.useState<string>('');
-  const [amount, setAmount] = React.useState<string>('');
-  const [bills, setBills] = React.useState<IBillRow[]>([createBillRow(1)]);
-  const nextBillId = React.useRef<number>(2);
+  // ChequeEntryPage remounts this form for a different SharePoint item.
+  // Preserve all saved bill rows and their amounts when entering Edit mode.
+  const [branchId, setBranchId] = React.useState<string>(initialEntry?.branchId || '');
+  const [entryDate, setEntryDate] = React.useState<string>(
+    initialEntry ? initialEntry.entryDate.substring(0, 10) : localToday()
+  );
+  const [chequeNo, setChequeNo] = React.useState<string>(initialEntry?.chequeNo || '');
+  const [chequeDate, setChequeDate] = React.useState<string>(
+    initialEntry ? initialEntry.chequeDate.substring(0, 10) : ''
+  );
+  const [bank, setBank] = React.useState<string>(initialEntry?.bank || '');
+  const [amount, setAmount] = React.useState<string>(
+    initialEntry ? String(initialEntry.amount) : ''
+  );
+  const [bills, setBills] = React.useState<IBillRow[]>(() =>
+    initialEntry && initialEntry.bills.length > 0
+      ? initialEntry.bills.map((bill, index) => ({
+          id: index + 1,
+          billNo: bill.billNo,
+          billAmount: String(bill.billAmount),
+          balance: String(bill.balance),
+          amount: String(bill.amount)
+        }))
+      : [createBillRow(1)]
+  );
+  const nextBillId = React.useRef<number>(
+    initialEntry && initialEntry.bills.length > 0
+      ? initialEntry.bills.length + 1 : 2
+  );
   const savingRef = React.useRef<boolean>(false);
   const [saving, setSaving] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string>('');
@@ -238,9 +274,12 @@ export const ChequeEntryForm: React.FC<IChequeEntryFormProps> = ({
     setSaving(true);
     try {
       await onSave(payload);
-      resetForm();
-      setSuccess('Cheque entry saved successfully.');
-      toast.success('Cheque entry saved successfully.', { title: 'Cheque Entry' });
+      if (!editing) resetForm();
+      const message = editing
+        ? 'Cheque entry updated successfully.'
+        : 'Cheque entry saved successfully.';
+      setSuccess(message);
+      toast.success(message, { title: 'Cheque Entry' });
       if (onSaved) {
         onSaved();
       }
@@ -253,8 +292,10 @@ export const ChequeEntryForm: React.FC<IChequeEntryFormProps> = ({
 
   return (
     <PageContainer
-      title="Cheque Entry"
-      description="Enter cheque details and assign the amount to bills."
+      title={editing ? 'Edit Cheque Entry' : 'Cheque Entry'}
+      description={editing
+        ? 'Update cheque details and bill assignments in SharePoint.'
+        : 'Enter cheque details and assign the amount to bills.'}
     >
       {onBack ? (
         <div className={styles.pageActions}>
@@ -281,7 +322,7 @@ export const ChequeEntryForm: React.FC<IChequeEntryFormProps> = ({
               options={branchOptions}
               required
               searchable
-              placeholder="Select branch from Unit Master"
+              placeholder="Select branch"
               onChange={value => {
                 setBranchId(typeof value === 'string' ? value : '');
                 clearFeedback();
@@ -441,14 +482,18 @@ export const ChequeEntryForm: React.FC<IChequeEntryFormProps> = ({
         </div>
 
         <FormFooter
-          submitLabel="Save Cheque"
-          cancelLabel="Clear"
+          submitLabel={editing ? 'Update Cheque' : 'Save Cheque'}
+          cancelLabel={editing ? 'Cancel' : 'Clear'}
           loading={saving}
           disabled={saving}
           onCancel={() => {
             if (!savingRef.current) {
-              resetForm();
-              clearFeedback();
+              if (editing && onBack) {
+                onBack();
+              } else {
+                resetForm();
+                clearFeedback();
+              }
             }
           }}
           onSubmit={() => { submit().catch(() => undefined); }}
