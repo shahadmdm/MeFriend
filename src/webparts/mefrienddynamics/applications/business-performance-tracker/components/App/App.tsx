@@ -327,15 +327,9 @@ export const App: React.FC<IPortalApplicationProps> = ({
       }),
     [aadHttpClientFactory, httpClient]
   );
-  // Explicitly opt in to the temporary localhost Business Report demo.
-  // Normal SharePoint users do not attempt calls to their own localhost.
+  // Hosted BPT report API services.
+  // Uses the backend URL configured in appConfig.
   const businessReportApiService = React.useMemo(() => {
-  const debugManifest = new URLSearchParams(
-    window.location.search
-  ).get('debugManifestsFile') || '';
-  if (!debugManifest.startsWith('https://localhost:4321/')) {
-    return undefined;
-  }
     const authClient = new AuthClient({
       aadHttpClientFactory,
       httpClient,
@@ -346,12 +340,6 @@ export const App: React.FC<IPortalApplicationProps> = ({
     return new BusinessReportApiService(new ApiClient(authClient));
   }, [aadHttpClientFactory, httpClient]);
   const collectionVerticalReportApiService = React.useMemo(() => {
-  const debugManifest = new URLSearchParams(
-    window.location.search
-  ).get('debugManifestsFile') || '';
-  if (!debugManifest.startsWith('https://localhost:4321/')) {
-    return undefined;
-  }
     const authClient = new AuthClient({
       aadHttpClientFactory,
       httpClient,
@@ -361,15 +349,9 @@ export const App: React.FC<IPortalApplicationProps> = ({
     });
     return new CollectionVerticalReportApiService(new ApiClient(authClient));
   }, [aadHttpClientFactory, httpClient]);
-  // Local SPFx debug only. The backend's development restriction
-  // remains mandatory; no production data access is enabled here.
+  // Hosted Collection on Bills API.
+  // Uses the backend URL configured in appConfig.
   const collectionOnBillsApiService = React.useMemo(() => {
-    const debugManifest = new URLSearchParams(
-      window.location.search
-    ).get('debugManifestsFile') || '';
-    if (!debugManifest.startsWith('https://localhost:4321/')) {
-      return undefined;
-    }
 
     const authClient = new AuthClient({
       aadHttpClientFactory,
