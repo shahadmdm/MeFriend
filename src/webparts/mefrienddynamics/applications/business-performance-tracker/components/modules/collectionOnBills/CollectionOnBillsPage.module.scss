@@ -1,0 +1,267 @@
+.filterPanel,
+.resultsPanel {
+  background: #fff;
+  border: 1px solid #e1e5eb;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  padding: 20px;
+}
+
+.panelHeading,
+.resultsHeader {
+  margin-bottom: 16px;
+
+  h3 {
+    color: #17263c;
+    font-size: 18px;
+    margin: 0 0 6px;
+  }
+
+  p {
+    color: #637187;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+  }
+}
+
+.filterGrid {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+}
+
+.submitControl {
+  align-items: flex-start;
+  align-self: start;
+  display: flex;
+  padding-top: 27px;
+}
+
+.demoNotice,
+.tableNote {
+  color: #5f6c7e;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 14px 0 0;
+}
+
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.reportTable {
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 0;
+  table-layout: fixed;
+  width: 100%;
+
+  th,
+  td {
+    border-bottom: 1px solid #e8ecf0;
+    overflow-wrap: anywhere;
+    padding: 8px 7px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  thead th {
+    background: #eff3f8;
+    color: #293b52;
+    font-weight: 700;
+    white-space: normal;
+  }
+
+  tbody tr:hover td {
+    background: #fafcff;
+  }
+
+  tbody tr.receiptStart td {
+    border-top: 2px solid #d7e0ea;
+  }
+
+  tfoot td {
+    background: #edf3f9;
+    color: #18324b;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+}
+
+.groupCell {
+  background: #fbfcfe;
+
+  strong,
+  small {
+    display: block;
+  }
+
+  small {
+    color: #6d7786;
+    margin-top: 4px;
+  }
+}
+
+.numeric {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.message,
+.errorMessage {
+  border-radius: 8px;
+  font-size: 14px;
+  padding: 20px;
+}
+
+.message {
+  background: #f6f8fb;
+  color: #596a7c;
+}
+
+.errorMessage {
+  background: #fff2f1;
+  border: 1px solid #f0d2cd;
+  color: #a12525;
+}
+
+.screenReaderOnly {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (max-width: 1100px) {
+  .filterGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+@media (max-width: 560px) {
+  .filterPanel,
+  .resultsPanel {
+    padding: 14px;
+  }
+
+  .filterGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.unitCell {
+  overflow-wrap: anywhere;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 15px;
+}
+
+.summaryCard {
+  background: #f9f9fd;
+  border: 1px solid #e5e2f0;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 12px 15px;
+}
+
+.summaryLabel {
+  color: #657187;
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.summaryValue {
+  color: #24104c;
+  display: block;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.paginationBar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.pageSizeLabel {
+  align-items: center;
+  color: #526179;
+  display: flex;
+  font-size: 12px;
+  gap: 7px;
+
+  select {
+    background: #fff;
+    border: 1px solid #d5d8e5;
+    border-radius: 5px;
+    color: #17263c;
+    padding: 6px;
+  }
+}
+
+.pageStatus {
+  color: #617187;
+  font-size: 12px;
+}
+
+.pageActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  button {
+    background: #fff;
+    border: 1px solid #d8d7e7;
+    border-radius: 5px;
+    color: #2b175c;
+    cursor: pointer;
+    font-size: 12px;
+    min-height: 32px;
+    min-width: 32px;
+    padding: 5px 8px;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .activePage {
+    background: #290c6e;
+    border-color: #290c6e;
+    color: #fff;
+  }
+}
+
+@media (max-width: 900px) {
+  .reportTable {
+    min-width: 860px;
+  }
+}
+
+@media (max-width: 560px) {
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .submitControl {
+    padding-top: 0;
+  }
+}

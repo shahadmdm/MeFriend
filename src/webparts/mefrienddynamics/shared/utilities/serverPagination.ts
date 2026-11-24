@@ -111,3 +111,15 @@ export const buildBcPageQuery = (
 
   return query;
 };
+
+export const buildServerPageQuery = (
+  filters: ServerFilterValues,
+  pagination: Pick<ICursorPaginationState, 'pageSize' | 'currentToken'>,
+  sorting?: ISortState
+): QueryParams => ({
+  ...filters,
+  pageSize: pagination.pageSize,
+  continuationToken: pagination.currentToken,
+  sortBy: sorting?.fieldName,
+  sortDirection: sorting?.direction
+});

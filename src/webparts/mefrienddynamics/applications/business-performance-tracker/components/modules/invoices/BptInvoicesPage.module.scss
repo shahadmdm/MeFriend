@@ -1,0 +1,29 @@
+.page { display: grid; gap: 18px; }
+.filterPanel, .tablePanel, .detail { background: #fff; border: 1px solid #e1e6ef; border-radius: 12px; padding: 18px; box-shadow: 0 1px 6px rgba(20,33,61,.045); min-width: 0; }
+.filterTitle, .panelHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.filterTitle h3, .panelHeading h3 { margin: 0; font-size: 17px; color: #241e46; }
+.filterTitle span, .panelHeading span { color: #64748b; font-size: 12px; }
+.warning { margin-top: 12px; border: 1px solid #f1d8a4; border-radius: 8px; background: #fffaf0; color: #75500d; padding: 10px 12px; font-size: 12px; line-height: 1.5; }
+.filterGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 14px; margin-top: 16px; }
+.filterGrid label { display: flex; flex-direction: column; gap: 6px; color: #4c5364; font-size: 12px; font-weight: 600; }
+.filterGrid input { width: 100%; box-sizing: border-box; border: 1px solid #d3dae6; border-radius: 7px; height: 37px; padding: 7px 9px; font-size: 13px; color: #1e293b; background: #fff; }
+.filterGrid input:focus { outline: 2px solid #b8a4f5; outline-offset: 1px; }
+.filterActions, .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.filterActions .check { margin-right: auto; display:flex; align-items:center; gap:8px; font-size:13px; }
+.filterActions button, .pagination button, .actions button, .detail button { background: #fff; border: 1px solid #c7cfdc; border-radius: 7px; padding: 8px 11px; cursor:pointer; font-size: 12px; color: #292341; }
+.filterActions button.primary { background:#5529ab; color:#fff; border-color:#5529ab; }
+.filterActions button:disabled, .pagination button:disabled, .actions button:disabled { opacity:.45; cursor:not-allowed; }
+.scrollArea { width: 100%; overflow-x: auto; margin-top: 14px; }
+.scrollArea table { border-collapse: separate; border-spacing:0; width:100%; min-width:1000px; font-size:12.5px; }
+.scrollArea th, .scrollArea td { padding: 11px 10px; border-bottom: 1px solid #e7ebf2; text-align: left; vertical-align:middle; white-space:nowrap; }
+.scrollArea th { background:#f6f4fb; color:#433668; font-size: 12px; font-weight:700; }
+.scrollArea td small { display:block; margin-top:3px; color:#64748b; }
+.scrollArea tbody tr:hover { background: #faf9fd; }
+.amount { text-align: right !important; font-variant-numeric:tabular-nums; }
+.actions { display:flex; gap:6px; }
+.message { margin: 18px 0; color:#64748b; }
+.error { margin-top:14px; padding:12px; border:1px solid #f0b3b3; background:#fff4f4; color:#941e1e; border-radius:8px; }
+.pagination { justify-content: space-between; }
+.detailGrid { display:grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr)); gap:12px; margin:14px 0; font-size:13px; }
+.detail h4 { margin: 20px 0 0; color: #332a56; }
+@media (max-width: 600px) { .filterPanel,.tablePanel,.detail { padding:12px; } }

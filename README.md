@@ -1,6 +1,6 @@
 # MeFriend Applications Portal
 
-This repository is the SharePoint Framework (SPFx) frontend for the MeFriend Applications Portal. One portal can launch multiple independent applications that consume the same shared platform. The MeFriend BC Extension is the first application; its Business Central features do not define the platform architecture.
+This repository is the SharePoint Framework (SPFx) frontend for the MeFriend Applications Portal. The portal launches the MeFriend BC Extension and Business Performance Tracker as separate applications.
 
 ## Architecture
 
@@ -12,14 +12,14 @@ SPFx web part
   applications/
     bc-extension/               BC pages, internal routes, services, models,
                                 permissions, requests, approvals, configuration
-    <future-application>/       its own pages, routes, services, models, access
+    business-performance-tracker/  performance, collection, invoice, and cheque pages
 ```
 
-The dependency direction is `application -> shared -> SPFx / SharePoint / external services`. Shared code never imports an application. The portal imports application definitions only through [the central registry](src/webparts/mefrienddynamics/portal/config/applications.ts). Portal routing selects an application prefix; the selected application resolves and navigates its own pages. The same registry supplies launcher cards, route metadata, and enabled status.
+Shared code never imports an application. The portal imports application definitions only through [the central registry](src/webparts/mefrienddynamics/portal/config/applications.ts). Portal routing selects an application prefix; the selected application resolves and navigates its own pages. The same registry supplies launcher cards, route metadata, and enabled status. Business Performance Tracker currently reuses several BC Extension company, access, salesperson, and invoice helpers; its own invoice model and print template are kept within its application folder to avoid changing BC behavior.
 
 The SPFx entry point is `src/webparts/mefrienddynamics/MefrienddynamicsWebPart.ts`. It passes the signed-in user and SPFx clients to the React portal. Generic controls, hooks, models, API transport, authentication, SharePoint REST access, formatting, and design foundations live under `src/webparts/mefrienddynamics/shared/`. Business Central endpoints, SharePoint list schemas, access rules, workflow, and page logic remain under `src/webparts/mefrienddynamics/applications/bc-extension/`.
 
-The BC application opens at `#/apps/bc`; its screens use `#/apps/bc/<module>/...`. The launcher opens at `#/` or `#/apps`. Hash routes keep SharePoint page refreshes on the same page. The BC application definition supplies legacy bookmark roots so old BC hashes can migrate without BC-specific logic in the portal router.
+The BC application opens at `#/apps/bc`; Business Performance Tracker opens at `#/apps/business-performance`. The launcher opens at `#/` or `#/apps`. Hash routes keep SharePoint page refreshes on the same page. The BC application definition supplies legacy bookmark roots so old BC hashes can migrate without BC-specific logic in the portal router.
 
 To add another application, create `src/webparts/mefrienddynamics/applications/<name>/` with its own component, pages, internal routes, services, models, and access source. Export one application definition from its `index.ts`, then add that definition to the central registry. The new module can import shared UI and infrastructure immediately; it does not need changes to the BC module. See [the platform guide](docs/portal-platform.md) for the application contract and development steps.
 
@@ -43,9 +43,15 @@ The BC frontend calls its configured backend through the shared API client. Busi
 
 ## Build and verification
 
-Use Node.js `>=22.14.0 <23.0.0`. From the repository root, run `npm ci` to install dependencies and `npm run build` to compile, lint, test, and package the SPFx solution. The generated package is `sharepoint/solution/madhyamam-mefriend.sppkg` and is ignored by Git. Building or packaging does not publish the solution.
+Use Node.js `>=22.14.0 <23.0.0`. From the repository root, run `npm ci` to install dependencies and `npm run build` to compile, lint, and package the SPFx solution. The generated package is `sharepoint/solution/madhyamam-mefriend.sppkg` and is ignored by Git. Building or packaging does not publish the solution.
 
-Before release, verify the launcher, BC module navigation, permissions, approval flows, requests, Business Central integration, detail-page refreshes, and legacy bookmarks in a SharePoint test site. Compilation and routing tests do not replace those functional checks. The package must be reviewed and deployed through the approved SharePoint process; no deployment is performed by the build command.
+Business Performance Tracker expects the SharePoint lists named in `applications/business-performance-tracker/config/sharePointConfig.ts`, plus `Business Performance App User Permissions`, `Business Performance Unit Access`, `Business Performance Cheque Entries`, and the existing `MeFriend App Users` list. It uses the existing SharePoint site URL in its `config/appConfig.ts`. Its invoices use the BC backend URL from the BC Extension configuration. The Business Report, Collection Vertical Report, and Collection on Bills API services are enabled only in local SPFx debug mode and still point to a localhost backend. Provision the lists and backend separately before functional testing; this repository contains only the frontend.
+
+Before release, verify both launcher entries, BC module navigation, permissions, approval flows, requests, Business Central integration, detail-page refreshes, legacy bookmarks, and the Business Performance Tracker modules in a SharePoint test site. Compilation does not replace those functional checks. The package must be reviewed and deployed through the approved SharePoint process; no deployment is performed by the build command.
+
+## Integration provenance
+
+Business Performance Tracker source was copied from `shahadmdm/MeFriend`, branch `feature/collection-vertical-report`, commit `ef0f038bb7ea8b826c8f33a053a757a814e234cc`. The portal registry was adapted and its invoice types, print template, and financial helpers were localized to the new application; two additive pagination exports were added to shared code. No existing BC Extension source file was replaced. The linked source repository did not contain a license file, so confirm redistribution terms with its owner before reuse outside this project. This integration and its compatibility edits were AI assisted; the application features themselves came from the linked team repository.
 
 ## Git workflow
 

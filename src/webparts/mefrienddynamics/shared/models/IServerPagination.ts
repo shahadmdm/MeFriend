@@ -12,6 +12,8 @@ export interface IBcPagedResult<TItem> {
   nextToken?: string;
 }
 
+export type IServerPagedResult<TItem> = IBcPagedResult<TItem>;
+
 export interface ICursorPaginationState {
   pageNumber: number;
   pageSize: number;

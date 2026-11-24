@@ -1,0 +1,233 @@
+// Cheque Entry listing · white cards + violet accents.
+// Matches the supplied reference while preserving all TSX CSS-module class names.
+$ink: #241e46;
+$accent: #5529ab;
+$accent-soft: #f6f4fb;
+$border: #e1e6ef;
+$muted: #64748b;
+
+.layout {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+  color: $ink;
+}
+
+.filterPanel, .tableShell {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid $border;
+  border-radius: 12px;
+  box-shadow: 0 1px 6px rgba(20, 33, 61, .045);
+}
+
+.filterPanel { padding: 18px; }
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  h3 { margin: 0; font-size: 17px; color: $ink; }
+  p { margin: 5px 0 0; color: $muted; font-size: 12px; line-height: 1.5; }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  // Toolbar uses the application's shared Button component.
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.dateFilter { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dateFilterLabel { color: #4c5364; font-size: 12px; font-weight: 600; }
+.dateFilterInput {
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid #d3dae6;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: #1e293b;
+  &:focus-visible { outline: 2px solid #b8a4f5; outline-offset: 1px; }
+}
+
+.warning {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f1d8a4;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #75500d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.error {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #f0b3b3;
+  border-radius: 8px;
+  background: #fff4f4;
+  color: #941e1e;
+  font-size: 13px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 15px 16px;
+  border: 1px solid $border;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(20,33,61,.035);
+  span { color: $muted; font-size: 12px; font-weight: 500; }
+  strong { font-size: 19px; font-weight: 700; color: $ink; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+}
+
+.tableShell { overflow: hidden; }
+.tableHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid $border;
+  background: #fff;
+  strong { color: $ink; font-size: 16px; }
+}
+.count { color: $muted; font-size: 12px; font-weight: 500; margin-left: 8px; }
+.hint { color: $muted; font-size: 12px; }
+.tableScroll { width: 100%; max-width: 100%; overflow-x: auto; }
+
+.table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+
+  th, td {
+    padding: 11px 10px;
+    border-bottom: 1px solid #e7ebf2;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  th {
+    background: $accent-soft;
+    color: #433668;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  td { color: #293043; background: #fff; }
+  tbody tr:hover td { background: #faf9fd; }
+  tbody tr:last-child td { border-bottom: none; }
+}
+.numeric { text-align: right !important; font-variant-numeric: tabular-nums; }
+
+// Keep the original frozen invoice number and row number columns.
+.stickyNumber { position: sticky; left: 0; z-index: 2; min-width: 36px; width: 36px; }
+.stickyIdentity { position: sticky; left: 56px; z-index: 2; min-width: 125px; }
+.table th.stickyNumber, .table th.stickyIdentity { z-index: 3; background: $accent-soft; }
+
+.chequeLink {
+  border: 0;
+  padding: 0;
+  color: $accent;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid #b8a4f5; outline-offset: 2px; }
+}
+
+.actionsHeading { text-align: center !important; }
+.actionCell { text-align: center !important; white-space: nowrap; min-width: 76px; }
+.actionButtons { display: inline-flex; justify-content: center; align-items: center; gap: 6px; }
+.rowAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  min-width: 27px;
+  min-height: 27px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #d6deea;
+  border-radius: 5px;
+  background: #fff;
+  color: #26364a;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+  svg { display: block; width: 15px; height: 15px; pointer-events: none; }
+  &:hover:not(:disabled) { background: #f6f8fc; border-color: #a9b6c9; }
+  &:disabled { opacity: .45; cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid #8e70ce; outline-offset: 2px; }
+}
+.state { margin: 18px 0; padding: 18px; text-align: center; color: $muted; font-size: 13px; }
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 13px 18px;
+  border-top: 1px solid $border;
+  font-size: 12px;
+  color: $muted;
+  button {
+    margin: 0 4px;
+    padding: 8px 11px;
+    border: 1px solid #c7cfdc;
+    border-radius: 7px;
+    background: #fff;
+    color: #292341;
+    font-size: 12px;
+    cursor: pointer;
+    &:hover:not(:disabled) { color: $accent; border-color: #b8a4f5; background: $accent-soft; }
+    &:disabled { opacity: .45; cursor: not-allowed; }
+    &:focus-visible { outline: 2px solid #b8a4f5; outline-offset: 1px; }
+  }
+}
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+@media (max-width: 960px) {
+  .summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .filterPanel { padding: 12px; }
+  .summaryGrid { grid-template-columns: minmax(0, 1fr); }
+  .tableHeader { padding: 12px; }
+  .summaryItem strong { font-size: 17px; }
+  .pagination { padding: 12px; }
+}
