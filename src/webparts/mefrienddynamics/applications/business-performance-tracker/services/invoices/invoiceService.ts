@@ -1,185 +1,117 @@
 import type { ApiClient } from '../../../../shared/api/apiClient';
-import type {
-  IInvoiceDetail,
-  IInvoiceFilters,
-  IInvoiceLineItem,
-  IInvoiceListItem,
-  IInvoicePaymentRecord,
-  PaymentStatus
-} from '../../../bc-extension/models/invoices';
-import type { ICursorPaginationState, IServerPagedResult } from '../../../../shared/models/IServerPagination';
+import type { IInvoiceDetail, IInvoiceFilters, IInvoiceLineItem, IInvoiceListItem } from '../../../bc-extension/models/invoices';
+import type { IBcPagedResult, ICursorPaginationState } from '../../../../shared/models/IServerPagination';
 import type { ISortState } from '../../../../shared/models/ISortState';
+import type { PaymentStatus } from '../../../bc-extension/models/invoices';
 import type { IAppUser } from '../../../bc-extension/models/settings/IAppAccessModels';
-import { calculateOutstandingAmount, calculatePaymentStatus } from '../../../bc-extension/utils/financialUtils';
 import { normalizeBusinessDate } from '../../../../shared/utilities/formatUtils';
 import { getCurrentSalespersonCode, normalizeSalespersonCode } from '../../../bc-extension/utils/salespersonDataScope';
-import { buildServerPageQuery } from '../../../../shared/utilities/serverPagination';
+import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
 import { requireInvoiceNumber } from '../../../bc-extension/utils/invoiceReference';
-
-/**
- * BPT adapts the current BC SalesInvoices contract to the older invoice models
- * used by its existing EntityDashboard, detail page and print/PDF template.
- * Do NOT replace this with the BC Extension service class: its public model is different.
- */
 interface IInvoiceLineItemApiModel {
-  '@odata.etag'?: string;
-  documentNo?: string;
-  lineNo?: number;
-  itemNo?: string;
-  no?: string;
-  type?: string;
-  HSNCode?: string;
-  hsnCode?: string;
-  hsnSac?: string;
-  hsnsac?: string;
-  GSTRate?: string;
-  gstRate?: string;
-  gstPercent?: number | string;
-  Amount?: number;
-  lineNumber?: string;
-  itemCode?: string;
+  '@odata.etag': string;
+  documentNo: string;
+  lineNo: number;
+  itemNo: string;
+  quantity: number;
+  HSNCode: string;
+  GSTRate: string;
+  Amount: number;
   description?: string;
-  quantity?: number;
-  unitPrice?: number;
-  lineDiscountPercentage?: number;
-  lineDiscountPercent?: number;
-  lineDiscountPct?: number;
-  lineAmount?: number;
-  amountIncludingVAT?: number;
-  currencyCode?: string;
+  itemDescription?: string;
 }
-
-interface IInvoicePaymentRecordApiModel {
-  id?: string;
-  paymentDate?: string;
-  referenceNumber?: string;
-  paymentMode?: string;
-  amount?: number;
-  currencyCode?: string;
-}
-
 interface IInvoiceApiModel {
   '@odata.etag'?: string;
-  id?: string;
-  number?: string; // Current BC API: invoice number
-  invoiceNumber?: string; // Legacy aliases supported for existing endpoints
-  invoiceNo?: string;
-  no?: string;
+  id: string;
+  number: string;
   invoiceDate?: string;
   postingDate?: string;
   documentDate?: string;
   dueDate?: string;
   externalDocumentNumber?: string;
   orderNumber?: string;
-  salesOrderNumber?: string;
-  salesOrderNo?: string;
-  salesOrderReference?: string;
-  bookingOrderNumber?: string;
-  bookingOrderNo?: string;
-  bookingOrderDate?: string;
-  salesOrderDate?: string;
   yourReference?: string;
-  customerNumber?: string;
-  customerCode?: string;
-  sellToCustomerNo?: string;
-  sellToCustomerName?: string;
-  customerName?: string;
-  customerAddress?: string;
-  customerGSTNo?: string;
-  customerGstin?: string;
-  customerGSTIN?: string;
-  customerGSTRegistrationNumber?: string;
-  customerGSTState?: string;
-  customerGstState?: string;
-  customerState?: string;
-  clientCode?: string;
-  clientName?: string;
-  clientAddress?: string;
-  clientGSTNo?: string;
-  clientGstin?: string;
-  clientGSTIN?: string;
-  clientGSTState?: string;
-  clientGstState?: string;
-  clientState?: string;
-  salesperson?: string | number;
-  salesPerson?: string | number;
-  salespersonCode?: string | number;
-  salesPersonCode?: string | number;
-  SalespersonCode?: string | number;
-  salespersonName?: string;
-  salesPersonName?: string;
+  customerNumber: string;
+  customerName: string;
   releaseOrderNumber?: string;
   releaseOrderDate?: string;
+  salesperson: string;
+  salespersonName?: string;
   totalAmountIncludingTax?: number;
-  totalAmountExcludingTax?: number;
-  totalAmount?: number;
-  netAmount?: number;
-  subtotal?: number;
-  tradeDiscount?: number;
-  discountAmount?: number;
-  invoiceDiscountAmountExclVat?: number;
-  invoiceDiscountAmountExclVAT?: number;
-  invoiceDiscountAmount?: number;
-  invoiceDiscountPercent?: number;
-  invoiceDiscountPercentage?: number;
-  sgst?: number;
-  cgst?: number;
-  igst?: number;
-  sgstAmount?: number;
-  cgstAmount?: number;
-  igstAmount?: number;
-  roundOffAmount?: number;
-  roundOff?: number;
-  paidAmount?: number;
-  remainingAmount?: number; // Current BC API: outstanding invoice balance
-  outstandingAmount?: number;
+  remainingAmount?: number;
   paymentStatus?: string;
   documentStatus?: string;
-  invoiceStatus?: string;
-  status?: string;
-  amountInWords?: string;
-  amountInWordsText?: string;
-  irn?: string;
-  IRN?: string;
-  acknowledgementNumber?: string;
-  ackNo?: string;
-  AckNo?: string;
-  acknowledgementDate?: string;
-  ackDate?: string;
-  AckDate?: string;
-  qrCodeData?: string;
-  qrCode?: string;
-  qrCodeUrl?: string;
-  signedQRCode?: string;
-  currencyCode?: string;
   sellToCustomerNumber?: string;
+  sellToCustomerName?: string;
   billToCustomerNumber?: string;
   billToCustomerName?: string;
   billToAddressLine1?: string;
   billToAddressLine2?: string;
+  billToCity?: string;
   billToState?: string;
+  billToPostCode?: string;
+  billToCountryCode?: string;
+  shipToName?: string;
   shipToAddressLine1?: string;
   shipToAddressLine2?: string;
-  shipToName?: string;
+  shipToCity?: string;
+  shipToState?: string;
+  shipToPostCode?: string;
+  shipToCountryCode?: string;
+  customerGSTRegistrationNumber?: string;
+  placeOfSupply?: string;
+  gstCustomerType?: string;
+  gstInvoice?: boolean;
+  hasGSTEntries?: boolean;
+  responsibilityCenter?: string;
+  locationCode?: string;
+  currencyCode?: string;
+  currencyFactor?: number;
+  paymentTermsCode?: string;
+  shipmentMethodCode?: string;
+  pricesIncludeTax?: boolean;
+  subtotal?: number;
+  discountAmount?: number;
+  totalAmountExcludingTax?: number;
+  sgstAmount?: number;
+  cgstAmount?: number;
+  igstAmount?: number;
+  utgstAmount?: number;
+  cessAmount?: number;
+  otherGSTAmount?: number;
+  totalTaxAmount?: number;
+  hasCustomerLedgerEntry?: boolean;
+  customerLedgerEntryNumber?: number;
+  originalAmount?: number;
+  settledAmount?: number;
+  originalAmountLCY?: number;
+  remainingAmountLCY?: number;
+  customerLedgerDueDate?: string;
+  closedAtDate?: string;
+  isOpen?: boolean;
+  isPaid?: boolean;
+  isPartiallyPaid?: boolean;
+  isOverdue?: boolean;
+  daysOverdue?: number;
+  postingDescription?: string;
+  shortcutDimension1Code?: string;
+  shortcutDimension2Code?: string;
+  dimensionSetId?: number;
+  customerPostingGroup?: string;
+  paymentMethodCode?: string;
+  companyBankAccountCode?: string;
+  sourceCode?: string;
+  lastModifiedDateTime?: string;
+  // The list endpoint may omit expanded lines.
   salesInvoiceLines?: readonly IInvoiceLineItemApiModel[];
-  SalesInvoiceLines?: readonly IInvoiceLineItemApiModel[];
-  lines?: readonly IInvoiceLineItemApiModel[];
-  payments?: readonly IInvoicePaymentRecordApiModel[];
 }
-
-type InvoiceListApiResponse = IServerPagedResult<IInvoiceApiModel>;
-
-/** Same report structure as the current BC Extension InvoiceService. */
+type InvoiceListApiResponse = IBcPagedResult<IInvoiceApiModel>;
 export interface IOutstandingInvoiceReport {
   invoices: readonly IInvoiceListItem[];
   totalOutstandingAmount: number;
 }
-
-/** BC Extension service structure, adapted to BPT's existing public models. */
 export class InvoiceService {
   public constructor(private readonly apiClient: ApiClient) {}
-
-  /** Fetches every matching outstanding invoice, not merely the visible page. */
   public async getOutstandingAmountTotal(
     filters: IInvoiceFilters,
     currentUser?: IAppUser
@@ -187,23 +119,17 @@ export class InvoiceService {
     const report = await this.getOutstandingInvoiceReport(filters, currentUser);
     return report.totalOutstandingAmount;
   }
-
-  /**
-   * Follows the server continuation tokens to build an accurate full report.
-   * Can be expensive for companies with very large invoice histories.
-   */
   public async getOutstandingInvoiceReport(
     filters: IInvoiceFilters,
     currentUser?: IAppUser
   ): Promise<IOutstandingInvoiceReport> {
-    const invoices: IInvoiceListItem[] = [];
     const visitedTokens = new Set<string>();
-    let totalOutstandingAmount = 0;
+    let total = 0;
     let pageSize = 100;
     let continuationToken: string | undefined;
-
+    const invoices: IInvoiceListItem[] = [];
     do {
-      const page = await this.getInvoices(
+      const result = await this.getInvoices(
         { ...filters, outstandingOnly: true },
         {
           pageNumber: 1,
@@ -216,21 +142,17 @@ export class InvoiceService {
         undefined,
         currentUser
       );
-
-      page.items.forEach((invoice: IInvoiceListItem): void => {
+      result.items.forEach((invoice: IInvoiceListItem) => {
         invoices.push(invoice);
-        const amount = invoice.outstandingAmount;
-        if (typeof amount === 'number' && Number.isFinite(amount)) {
-          totalOutstandingAmount += amount;
+        if (typeof invoice.remainingAmount === 'number' && Number.isFinite(invoice.remainingAmount)) {
+          total += invoice.remainingAmount;
         }
       });
-
-      if (page.hasNext && !page.nextToken) {
-        throw new Error('Invoice API returned hasNext=true without a continuation token.');
+      if (result.hasNext && !result.nextToken) {
+        throw new Error('Invoice API returned a paged result without a continuation token.');
       }
-
-      pageSize = page.pageSize || pageSize;
-      continuationToken = page.hasNext ? page.nextToken : undefined;
+      pageSize = result.pageSize || pageSize;
+      continuationToken = result.hasNext ? result.nextToken : undefined;
       if (continuationToken) {
         if (visitedTokens.has(continuationToken)) {
           throw new Error('Invoice API returned a repeated continuation token.');
@@ -238,294 +160,231 @@ export class InvoiceService {
         visitedTokens.add(continuationToken);
       }
     } while (continuationToken);
-
-    return { invoices, totalOutstandingAmount };
-  }
-
-  /**
-   * Fast grand totals (optional API route; requires backend implementation).
-   * Expected response.data:
-   * { invoiceCount: number, totalAmount: number, outstandingAmount: number }
-   * Totals must be computed over ALL matching invoices, not a paginated page.
-   */
-  public async getInvoiceTotals(
-    filters: IInvoiceFilters = {},
-    currentUser?: IAppUser
-  ): Promise<{ invoiceCount: number; totalAmount: number; outstandingAmount: number }> {
-    const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
-    const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
-    const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
-    const params = new URLSearchParams();
-    const setText = (name: string, value?: string): void => {
-      const normalized = value && value.trim();
-      if (normalized) {
-        params.set(name, normalized);
-      }
+    return {
+      invoices,
+      totalOutstandingAmount: total
     };
-    setText('Search', filters.searchText);
-    const customerSearch = (filters as IInvoiceFilters & { customerSearch?: string }).customerSearch;
-    setText('CustomerSearch', customerSearch);
-    setText('Filters[customerCode]', filters.customerCode);
-    setText('Filters[salespersonCode]', salespersonCode);
-    setText('Filters[invoiceDateFrom]', normalizeBusinessDate(filters.invoiceDateFrom));
-    setText('Filters[invoiceDateTo]', normalizeBusinessDate(filters.invoiceDateTo));
-    if (filters.outstandingOnly === true) {
-      params.set('OutstandingOnly', 'true');
-    }
-    const query = params.toString();
-    const url = query ? `/api/SalesInvoices/totals?${query}` : '/api/SalesInvoices/totals';
-    const response = await this.apiClient.get<{
-      invoiceCount: number;
-      totalAmount: number;
-      outstandingAmount: number;
-    }>(url);
-    const data = response.data;
-    if (!data || !Number.isFinite(data.invoiceCount) ||
-      !Number.isFinite(data.totalAmount) || !Number.isFinite(data.outstandingAmount)) {
-      throw new Error('SalesInvoices totals API returned invalid totals.');
-    }
-    return data;
   }
-
-  /**
-   * Retains the known-working BPT query mapping. buildServerPageQuery is used
-   * for paging/sorting only; filter keys are written explicitly to the URL.
-   * The BC API's PagedRequest expects Search, CustomerSearch, OutstandingOnly
-   * and Filters[fieldName], not the old flat searchText/salesPerson keys.
-   */
   public async getInvoices(
     filters: IInvoiceFilters = {},
     pagination: ICursorPaginationState,
     sorting?: ISortState,
     currentUser?: IAppUser
-  ): Promise<IServerPagedResult<IInvoiceListItem>> {
+  ): Promise<IBcPagedResult<IInvoiceListItem>> {
     const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
     const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
     const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
-
-    const baseQuery = buildServerPageQuery({}, pagination, sorting);
-    const params = new URLSearchParams();
-    Object.keys(baseQuery).forEach((name: string): void => {
-      const value = baseQuery[name as keyof typeof baseQuery];
-      if (value !== undefined && value !== null && String(value) !== '') {
-        params.set(name, String(value));
+    const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices', buildBcPageQuery({
+      search: filters.searchText,
+      parameters: {
+        customerSearch: filters.customerSearch,
+        outstandingOnly: filters.outstandingOnly === true ? true : undefined
+      },
+      filters: {
+        customerCode: filters.customerCode,
+        salespersonCode,
+        invoiceDateFrom: normalizeBusinessDate(filters.invoiceDateFrom),
+        invoiceDateTo: normalizeBusinessDate(filters.invoiceDateTo)
       }
-    });
-
-    const setText = (name: string, value?: string): void => {
-      const normalized = value && value.trim();
-      if (normalized) {
-        params.set(name, normalized);
-      }
+    }, pagination, sorting));
+    const result = response.data;
+    if (!response.success || !result || !Array.isArray(result.items)) {
+      const responseError = new Error(response.message || 'Invoice API returned an invalid list response.') as Error & {
+        errors?: readonly string[];
+        correlationId?: string;
+      };
+      responseError.errors = response.errors;
+      responseError.correlationId = response.correlationId;
+      throw responseError;
+    }
+    return {
+      items: result.items.map((item: IInvoiceApiModel) => this.mapInvoiceApiToUiModel(item)),
+      pageSize: result.pageSize || pagination.pageSize,
+      hasNext: Boolean(result.hasNext),
+      nextToken: result.nextToken
     };
-
-    setText('Search', filters.searchText);
-    // Some BC page versions include customerSearch, which is supported by the API.
-    const customerSearch = (filters as IInvoiceFilters & { customerSearch?: string }).customerSearch;
-    setText('CustomerSearch', customerSearch);
-    setText('Filters[customerCode]', filters.customerCode);
-    setText('Filters[salespersonCode]', salespersonCode);
-    setText('Filters[invoiceDateFrom]', normalizeBusinessDate(filters.invoiceDateFrom));
-    setText('Filters[invoiceDateTo]', normalizeBusinessDate(filters.invoiceDateTo));
-
-    if (filters.outstandingOnly === true) {
-      params.set('OutstandingOnly', 'true');
-    }
-
-    const query = params.toString();
-    const url = query ? `/api/SalesInvoices?${query}` : '/api/SalesInvoices';
-    const response = await this.apiClient.get<InvoiceListApiResponse>(url);
-
-    if (!response.data || !Array.isArray(response.data.items)) {
-      throw new Error(response.message || 'Invoice API returned an invalid paged response.');
-    }
-
-    return this.mapPagedResult(response.data, pagination.pageSize);
   }
-
-  /** The detail endpoint binds salespersonCode rather than salesPerson. */
   public async getInvoiceByNumber(invoiceNumber: string, currentUser?: IAppUser): Promise<IInvoiceDetail> {
     const invoiceReference = requireInvoiceNumber(invoiceNumber);
-    const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
+    const salespersonCode = getCurrentSalespersonCode(currentUser);
     const response = await this.apiClient.get<IInvoiceApiModel>(
       `/api/SalesInvoices/${encodeURIComponent(invoiceReference)}`,
-      { salespersonCode: mandatorySalespersonCode }
+      { salespersonCode }
     );
-
-    const mappedInvoice = response.data ? this.mapInvoiceApiToUiModel(response.data) : undefined;
-    if (!mappedInvoice ||
-      (mandatorySalespersonCode &&
-        normalizeSalespersonCode(mappedInvoice.salespersonCode) !== mandatorySalespersonCode)) {
-      const error = new Error(`Invoice ${invoiceReference} was not found.`) as Error & { status?: number };
-      error.status = 404;
-      throw error;
+    if (!response.success || !response.data || (salespersonCode && normalizeSalespersonCode(response.data.salesperson) !== salespersonCode)) {
+      const notFoundError = new Error(`Invoice ${invoiceReference} was not found.`) as Error & { status?: number };
+      notFoundError.status = 404;
+      throw notFoundError;
     }
-    return mappedInvoice;
+    return this.mapInvoiceApiToUiModel(response.data);
   }
-
   public async getOutstandingInvoices(
     filters: IInvoiceFilters = {},
     pagination: ICursorPaginationState,
     sorting?: ISortState,
     currentUser?: IAppUser
-  ): Promise<IServerPagedResult<IInvoiceListItem>> {
+  ): Promise<IBcPagedResult<IInvoiceListItem>> {
     return this.getInvoices({ ...filters, outstandingOnly: true }, pagination, sorting, currentUser);
   }
 
-  /**
-   * Compatibility method for existing BPT callers. The current backend does
-   * not expose a server-side salesOrderNumber filter, so we scan the company's
-   * invoices with cursor pagination and match the order number locally.
-   * For large company histories this can be expensive; prefer a server-side
-   * sales order filter when the API is extended.
-   */
-  public async getInvoicesBySalesOrderId(
-    salesOrderId: string,
-    currentUser?: IAppUser
-  ): Promise<IServerPagedResult<IInvoiceListItem>> {
-    const requestedOrder = (salesOrderId || '').trim().toUpperCase();
-    if (!requestedOrder) {
-      throw new Error('Sales order number is required.');
-    }
-
-    const matches: IInvoiceListItem[] = [];
-    const visitedTokens = new Set<string>();
-    let continuationToken: string | undefined;
+  // Scan the existing listing endpoint; no new totals endpoint is required.
+  private async scanInvoices(
+    filters: IInvoiceFilters,
+    currentUser: IAppUser | undefined,
+    visit: (invoice: IInvoiceListItem) => void
+  ): Promise<void> {
     let pageSize = 100;
+    let token: string | undefined;
+    const seen = new Set<string>();
     do {
-      const page = await this.getInvoices(
-        {},
-        {
-          pageNumber: 1,
-          pageSize,
-          currentToken: continuationToken,
-          nextToken: undefined,
-          hasNext: false,
-          pageTokens: { 1: continuationToken }
-        },
-        undefined,
-        currentUser
-      );
-      page.items.forEach((invoice: IInvoiceListItem): void => {
-        if ((invoice.salesOrderNumber || '').trim().toUpperCase() === requestedOrder) {
-          matches.push(invoice);
-        }
-      });
+      const page = await this.getInvoices(filters, {
+        pageNumber: 1, pageSize, currentToken: token,
+        nextToken: undefined, hasNext: false, pageTokens: { 1: token }
+      }, undefined, currentUser);
+      page.items.forEach(visit);
       if (page.hasNext && !page.nextToken) {
-        throw new Error('Invoice API returned hasNext=true without a continuation token.');
+        throw new Error('Invoice API returned a paged result without a continuation token.');
+      }
+      token = page.hasNext ? page.nextToken : undefined;
+      if (token) {
+        if (seen.has(token)) { throw new Error('Invoice API returned a repeated continuation token.'); }
+        seen.add(token);
       }
       pageSize = page.pageSize || pageSize;
-      continuationToken = page.hasNext ? page.nextToken : undefined;
-      if (continuationToken) {
-        if (visitedTokens.has(continuationToken)) {
-          throw new Error('Invoice API returned a repeated continuation token.');
-        }
-        visitedTokens.add(continuationToken);
+    } while (token);
+  }
+
+  public async getInvoiceTotals(
+    filters: IInvoiceFilters = {}, currentUser?: IAppUser
+  ): Promise<{ invoiceCount: number; totalAmount: number; outstandingAmount: number }> {
+    const totals = { invoiceCount: 0, totalAmount: 0, outstandingAmount: 0 };
+    await this.scanInvoices(filters, currentUser, (invoice: IInvoiceListItem) => {
+      totals.invoiceCount += 1;
+      if (typeof invoice.totalAmountIncludingTax === 'number' && Number.isFinite(invoice.totalAmountIncludingTax)) {
+        totals.totalAmount += invoice.totalAmountIncludingTax;
       }
-    } while (continuationToken);
-
-    return {
-      items: matches,
-      pageSize: matches.length || pageSize,
-      hasNext: false,
-      nextToken: undefined
-    };
+      if (typeof invoice.remainingAmount === 'number' && Number.isFinite(invoice.remainingAmount)) {
+        totals.outstandingAmount += invoice.remainingAmount;
+      }
+    });
+    return totals;
   }
 
-  /**
-   * Current BC API fields -> legacy BPT invoice model fields. Both newer
-   * number/customerNumber/remainingAmount and older aliases are recognized.
-   */
-  public mapInvoiceApiToUiModel(api?: IInvoiceApiModel): IInvoiceDetail {
-    const invoiceNumber = api?.number || api?.invoiceNumber || api?.invoiceNo || api?.no || '';
-    const customerCode = api?.customerNumber || api?.customerCode || api?.sellToCustomerNo || '';
-    const rawSalespersonCode = api?.salesperson ?? api?.salespersonCode ?? api?.salesPersonCode ??
-      api?.SalespersonCode ?? api?.salesPerson;
-    const salespersonCode = rawSalespersonCode === null || rawSalespersonCode === undefined
-      ? '' : String(rawSalespersonCode).trim();
-
-    const netAmount = this.toOptionalAmount(api?.netAmount, api?.totalAmountExcludingTax);
-    const tradeDiscount = this.toOptionalAmount(api?.tradeDiscount, api?.discountAmount);
-    const invoiceDiscountAmountExclVat = this.toOptionalAmount(
-      api?.invoiceDiscountAmountExclVat,
-      this.toOptionalAmount(api?.invoiceDiscountAmountExclVAT, api?.invoiceDiscountAmount)
-    );
-    const invoiceDiscountPercent = this.toOptionalAmount(api?.invoiceDiscountPercent, api?.invoiceDiscountPercentage);
-    const sgst = this.toOptionalAmount(api?.sgst, api?.sgstAmount);
-    const cgst = this.toOptionalAmount(api?.cgst, api?.cgstAmount);
-    const igst = this.toOptionalAmount(api?.igst, api?.igstAmount);
-    const computedAmount = this.calculateInvoiceTotal(netAmount, tradeDiscount, sgst, cgst, igst);
-    const totalAmount = this.toAmount(
-      api?.totalAmount,
-      this.toAmount(api?.totalAmountIncludingTax, this.toAmount(computedAmount, 0))
-    );
-    const backendBalance = this.toOptionalAmount(api?.remainingAmount, api?.outstandingAmount);
-    const paidAmount = this.toOptionalAmount(
-      api?.paidAmount,
-      backendBalance === undefined ? 0 : Math.max(0, totalAmount - backendBalance)
-    );
-    const outstandingAmount = backendBalance !== undefined
-      ? backendBalance
-      : calculateOutstandingAmount(totalAmount, paidAmount, api?.outstandingAmount);
-    const paymentStatus = calculatePaymentStatus(
-      paidAmount,
-      outstandingAmount,
-      api?.paymentStatus as PaymentStatus | undefined
-    );
-    const lines = api?.salesInvoiceLines || api?.SalesInvoiceLines || api?.lines || [];
-    const customerAddress = api?.customerAddress ||
-      [api?.billToAddressLine1, api?.billToAddressLine2].filter(Boolean).join(', ');
-
-    return {
-      id: api?.id || invoiceNumber,
-      invoiceNumber,
-      customerCode,
-      customerName: api?.customerName || api?.sellToCustomerName || '',
-      customerAddress,
-      customerGSTNo: api?.customerGSTRegistrationNumber || api?.customerGSTNo || api?.customerGstin || api?.customerGSTIN || '',
-      customerGSTState: api?.customerGSTState || api?.customerGstState || api?.customerState || api?.billToState || '',
-      clientCode: api?.clientCode || api?.billToCustomerNumber || '',
-      clientName: api?.clientName || api?.billToCustomerName || '',
-      clientAddress: api?.clientAddress || '',
-      clientGSTNo: api?.clientGSTNo || api?.clientGstin || api?.clientGSTIN || '',
-      clientGSTState: api?.clientGSTState || api?.clientGstState || api?.clientState || '',
-      salespersonCode,
-      salesPerson: api?.salesPersonName || api?.salespersonName || salespersonCode,
-      salesOrderNumber: api?.orderNumber || api?.bookingOrderNumber || api?.bookingOrderNo ||
-        api?.salesOrderNumber || api?.salesOrderNo || api?.salesOrderReference || '',
-      salesOrderDate: normalizeBusinessDate(api?.bookingOrderDate || api?.salesOrderDate),
-      invoiceDate: normalizeBusinessDate(api?.invoiceDate || api?.postingDate),
-      dueDate: normalizeBusinessDate(api?.dueDate),
-      totalAmount,
-      netAmount,
-      tradeDiscount,
-      invoiceDiscountAmountExclVat,
-      invoiceDiscountPercent,
-      sgst,
-      cgst,
-      igst,
-      roundOffAmount: this.toOptionalAmount(api?.roundOffAmount, api?.roundOff),
-      amountInWords: api?.amountInWords || api?.amountInWordsText || '',
-      irn: api?.irn || api?.IRN || '',
-      acknowledgementNumber: api?.acknowledgementNumber || api?.ackNo || api?.AckNo || '',
-      acknowledgementDate: normalizeBusinessDate(api?.acknowledgementDate || api?.ackDate || api?.AckDate),
-      qrCodeData: api?.qrCodeData || api?.qrCode || api?.qrCodeUrl || api?.signedQRCode || '',
-      paidAmount,
-      outstandingAmount,
-      paymentStatus,
-      invoiceStatus: api?.invoiceStatus || api?.documentStatus || api?.status || '',
-      currencyCode: api?.currencyCode || '',
-      lines: lines.map(line => this.mapInvoiceLineApiToUiModel(line, api?.currencyCode)),
-      payments: (api?.payments || []).map(payment => this.mapInvoicePaymentApiToUiModel(payment, api?.currencyCode))
-    };
+  public async getInvoicesBySalesOrderId(
+    salesOrderId: string, currentUser?: IAppUser
+  ): Promise<IBcPagedResult<IInvoiceListItem>> {
+    const requestedOrder = (salesOrderId || '').trim().toUpperCase();
+    if (!requestedOrder) { throw new Error('Sales order number is required.'); }
+    const matches: IInvoiceListItem[] = [];
+    await this.scanInvoices({}, currentUser, (invoice: IInvoiceListItem) => {
+      // List items are mapped to detail objects by getInvoices.
+      const orderNumber = (invoice as IInvoiceDetail).orderNumber;
+      if ((orderNumber || '').trim().toUpperCase() === requestedOrder) {
+        matches.push(invoice);
+      }
+    });
+    return { items: matches, pageSize: matches.length || 100, hasNext: false, nextToken: undefined };
   }
 
+  public mapInvoiceApiToUiModel(api: IInvoiceApiModel): IInvoiceDetail {
+    return {
+      id: api.id,
+      number: api.number,
+      invoiceDate: api.invoiceDate,
+      postingDate: api.postingDate,
+      documentDate: api.documentDate,
+      dueDate: api.dueDate,
+      externalDocumentNumber: api.externalDocumentNumber,
+      orderNumber: api.orderNumber,
+      yourReference: api.yourReference,
+      customerNumber: api.customerNumber,
+      customerName: api.customerName,
+      releaseOrderNumber: api.releaseOrderNumber,
+      releaseOrderDate: api.releaseOrderDate,
+      salesperson: api.salesperson,
+      salespersonName: api.salespersonName,
+      totalAmountIncludingTax: api.totalAmountIncludingTax,
+      remainingAmount: api.remainingAmount,
+      paymentStatus: api.paymentStatus,
+      documentStatus: api.documentStatus,
+      sellToCustomerNumber: api.sellToCustomerNumber,
+      sellToCustomerName: api.sellToCustomerName,
+      billToCustomerNumber: api.billToCustomerNumber,
+      billToCustomerName: api.billToCustomerName,
+      billToAddressLine1: api.billToAddressLine1,
+      billToAddressLine2: api.billToAddressLine2,
+      billToCity: api.billToCity,
+      billToState: api.billToState,
+      billToPostCode: api.billToPostCode,
+      billToCountryCode: api.billToCountryCode,
+      shipToName: api.shipToName,
+      shipToAddressLine1: api.shipToAddressLine1,
+      shipToAddressLine2: api.shipToAddressLine2,
+      shipToCity: api.shipToCity,
+      shipToState: api.shipToState,
+      shipToPostCode: api.shipToPostCode,
+      shipToCountryCode: api.shipToCountryCode,
+      customerGSTRegistrationNumber: api.customerGSTRegistrationNumber,
+      placeOfSupply: api.placeOfSupply,
+      gstCustomerType: api.gstCustomerType,
+      gstInvoice: api.gstInvoice,
+      hasGSTEntries: api.hasGSTEntries,
+      responsibilityCenter: api.responsibilityCenter,
+      locationCode: api.locationCode,
+      currencyCode: api.currencyCode,
+      currencyFactor: api.currencyFactor,
+      paymentTermsCode: api.paymentTermsCode,
+      shipmentMethodCode: api.shipmentMethodCode,
+      pricesIncludeTax: api.pricesIncludeTax,
+      subtotal: api.subtotal,
+      discountAmount: api.discountAmount,
+      totalAmountExcludingTax: api.totalAmountExcludingTax,
+      sgstAmount: api.sgstAmount,
+      cgstAmount: api.cgstAmount,
+      igstAmount: api.igstAmount,
+      utgstAmount: api.utgstAmount,
+      cessAmount: api.cessAmount,
+      otherGSTAmount: api.otherGSTAmount,
+      totalTaxAmount: api.totalTaxAmount,
+      hasCustomerLedgerEntry: api.hasCustomerLedgerEntry,
+      customerLedgerEntryNumber: api.customerLedgerEntryNumber,
+      originalAmount: api.originalAmount,
+      settledAmount: api.settledAmount,
+      originalAmountLCY: api.originalAmountLCY,
+      remainingAmountLCY: api.remainingAmountLCY,
+      customerLedgerDueDate: api.customerLedgerDueDate,
+      closedAtDate: api.closedAtDate,
+      isOpen: api.isOpen,
+      isPaid: api.isPaid,
+      isPartiallyPaid: api.isPartiallyPaid,
+      isOverdue: api.isOverdue,
+      daysOverdue: api.daysOverdue,
+      postingDescription: api.postingDescription,
+      shortcutDimension1Code: api.shortcutDimension1Code,
+      shortcutDimension2Code: api.shortcutDimension2Code,
+      dimensionSetId: api.dimensionSetId,
+      customerPostingGroup: api.customerPostingGroup,
+      paymentMethodCode: api.paymentMethodCode,
+      companyBankAccountCode: api.companyBankAccountCode,
+      sourceCode: api.sourceCode,
+      lastModifiedDateTime: api.lastModifiedDateTime,
+      lines: (api.salesInvoiceLines || []).map((line: IInvoiceLineItemApiModel) => this.mapInvoiceLineApiToUiModel(line))
+    };
+  }
   public calculateOutstandingAmount(
     totalAmount: number,
     paidAmount: number | undefined,
     backendOutstanding?: number
   ): number | undefined {
-    return calculateOutstandingAmount(totalAmount, paidAmount, backendOutstanding);
+    if (backendOutstanding !== undefined) {
+      return backendOutstanding;
+    }
+
+    if (paidAmount === undefined) {
+      return undefined;
+    }
+
+    return Math.max(0, totalAmount - paidAmount);
   }
 
   public calculatePaymentStatus(
@@ -534,87 +393,39 @@ export class InvoiceService {
     outstandingAmount: number | undefined,
     backendStatus?: PaymentStatus
   ): PaymentStatus {
-    return calculatePaymentStatus(paidAmount, outstandingAmount, backendStatus);
+    if (backendStatus) {
+      return backendStatus;
+    }
+
+    if (outstandingAmount === undefined) {
+      return 'Unknown';
+    }
+
+    if (outstandingAmount <= 0) {
+      return 'Paid';
+    }
+
+    if (paidAmount === undefined) {
+      return 'Unknown';
+    }
+
+    return paidAmount > 0 ? 'Partially Paid' : 'Unpaid';
   }
 
-  private mapPagedResult(
-    api: InvoiceListApiResponse | undefined,
-    requestedPageSize: number
-  ): IServerPagedResult<IInvoiceListItem> {
+  private mapInvoiceLineApiToUiModel(api: IInvoiceLineItemApiModel): IInvoiceLineItem {
+    const amount = Number.isFinite(api.Amount) ? api.Amount : 0;
+    const quantity = Number.isFinite(api.quantity) ? api.quantity : 0;
     return {
-      items: (api?.items || []).map(item => this.mapInvoiceApiToUiModel(item)),
-      pageSize: api?.pageSize || requestedPageSize,
-      hasNext: Boolean(api?.hasNext),
-      nextToken: api?.nextToken
-    };
-  }
-
-  private mapInvoiceLineApiToUiModel(api: IInvoiceLineItemApiModel, currencyCode?: string): IInvoiceLineItem {
-    const quantity = this.toAmount(api.quantity, 0);
-    const lineAmount = this.toAmount(api.lineAmount, this.toAmount(api.Amount, 0));
-    const lineNumber = api.lineNumber || (typeof api.lineNo === 'number' ? String(api.lineNo) : '');
-    return {
-      lineNumber,
-      lineType: api.type || undefined,
-      documentNumber: api.documentNo || undefined,
-      itemCode: api.itemCode || api.no || api.itemNo || '',
-      hsnCode: api.HSNCode || api.hsnCode || api.hsnSac || api.hsnsac || undefined,
-      gstRate: this.toGstRate(api.GSTRate || api.gstRate || api.gstPercent),
-      description: api.description || '',
+      lineNumber: String(api.lineNo),
+      documentNumber: api.documentNo,
+      itemCode: api.itemNo,
+      hsnCode: api.HSNCode,
+      gstRate: api.GSTRate,
+      description: api.description || api.itemDescription || '',
+      itemDescription: api.itemDescription,
       quantity,
-      unitPrice: this.toAmount(api.unitPrice, quantity > 0 ? lineAmount / quantity : 0),
-      lineDiscountPercentage: this.toOptionalAmount(
-        api.lineDiscountPercentage,
-        this.toOptionalAmount(api.lineDiscountPercent, api.lineDiscountPct)
-      ),
-      lineAmount,
-      amountIncludingVAT: this.toOptionalAmount(api.amountIncludingVAT),
-      currencyCode: api.currencyCode || currencyCode || ''
+      unitPrice: quantity === 0 ? 0 : amount / quantity,
+      lineAmount: amount
     };
-  }
-
-  private mapInvoicePaymentApiToUiModel(api: IInvoicePaymentRecordApiModel, currencyCode?: string): IInvoicePaymentRecord {
-    return {
-      id: api.id || api.referenceNumber || '',
-      paymentDate: api.paymentDate,
-      referenceNumber: api.referenceNumber || '',
-      paymentMode: api.paymentMode || '',
-      amount: this.toOptionalAmount(api.amount),
-      currencyCode: api.currencyCode || currencyCode || ''
-    };
-  }
-
-  private toAmount(value: number | undefined, fallback: number): number {
-    return this.isValidNumber(value) ? value : fallback;
-  }
-
-  private toOptionalAmount(value: number | undefined, fallback?: number): number | undefined {
-    return this.isValidNumber(value) ? value : this.isValidNumber(fallback) ? fallback : undefined;
-  }
-
-  private isValidNumber(value: number | undefined): value is number {
-    return typeof value === 'number' && Number.isFinite(value);
-  }
-
-  private toGstRate(value: string | number | undefined): string | undefined {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return `${value}%`;
-    }
-    return typeof value === 'string' && value ? value : undefined;
-  }
-
-  private calculateInvoiceTotal(
-    netAmount: number | undefined,
-    tradeDiscount: number | undefined,
-    sgst: number | undefined,
-    cgst: number | undefined,
-    igst: number | undefined
-  ): number | undefined {
-    if (netAmount === undefined && tradeDiscount === undefined && sgst === undefined &&
-      cgst === undefined && igst === undefined) {
-      return undefined;
-    }
-    return this.toAmount(netAmount, 0) - this.toAmount(tradeDiscount, 0) +
-      this.toAmount(sgst, 0) + this.toAmount(cgst, 0) + this.toAmount(igst, 0);
   }
 }
