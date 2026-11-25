@@ -3,11 +3,10 @@ export const appConfig = {
   defaultRoutePath: 'verticals',
 
   // Backend API configuration.
-  // Keep localhost during development.
-  backendApiBaseUrl: 'https://localhost:7263',
+  backendApiBaseUrl: 'https://bc-api01.mefriend.com',
 
   backendApi: {
-    baseUrl: 'https://localhost:7263',
+    baseUrl: 'https://bc-api01.mefriend.com',
     anonymous: true,
     useAadHttpClient: false,
     aadResourceUrl: ''

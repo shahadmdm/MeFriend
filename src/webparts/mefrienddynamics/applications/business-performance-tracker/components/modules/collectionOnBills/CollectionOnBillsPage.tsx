@@ -27,7 +27,7 @@ export interface ICollectionOnBillsPageProps {
   appUserId?: number;
   unitService: UnitService;
   unitAccessService: BusinessPerformanceUnitAccessService;
-  collectionOnBillsApiService?: CollectionOnBillsApiService;
+  collectionOnBillsApiService: CollectionOnBillsApiService;
 }
 
 interface IAppliedSelection extends ICollectionOnBillsRequest {
@@ -181,11 +181,6 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
       setError(unitError || 'No permitted Units available for this company.');
       return;
     }
-    if (!collectionOnBillsApiService) {
-      setError('Collection on Bills API is not connected in this environment.');
-      return;
-    }
-
     const requestId = ++requestIdRef.current;
     setPageNumber(1);
     setAppliedSelection(undefined);
@@ -367,7 +362,7 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
               label="Submit"
               variant="primary"
               loading={loading}
-              disabled={!collectionOnBillsApiService || !selectedCompanyId ||
+              disabled={!selectedCompanyId ||
                 unitsLoading || Boolean(unitError) || unitOptions.length === 0 ||
                 selectedCodes.length === 0}
               onClick={() => {
@@ -380,11 +375,6 @@ export const CollectionOnBillsPage: React.FC<ICollectionOnBillsPageProps> = ({
         </div>
         {unitError ? (
           <p className={styles.errorMessage} role="alert">{unitError}</p>
-        ) : null}
-        {!collectionOnBillsApiService ? (
-          <p className={styles.demoNotice} role="status">
-            This report&apos;s backend connection is available only in the approved local development environment.
-          </p>
         ) : null}
       </section>
 
