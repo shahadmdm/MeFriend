@@ -7,7 +7,9 @@ import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { CustomerService } from '../../../services/customers/customerService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
+import { formatMasterDataCodeAndName, normalizeMasterDataCode } from '../../../utils/masterDataDisplay';
 import { Button } from '../../../../../shared/components/buttons/Button';
 import { EntityDashboard } from '../../../../../shared/components/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../../../../shared/components/filters/EntityFilters';
@@ -15,6 +17,7 @@ import type { EntityFilterValues, FilterValue } from '../../../../../shared/comp
 export interface ISalesOrderPageProps {
   canCreateSalesOrder: boolean;
   currentUser?: IAppUser;
+  customerService: CustomerService;
   salesOrderService: SalesOrderService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
@@ -22,12 +25,9 @@ export interface ISalesOrderPageProps {
 
 const toSalesOrderFilters = (values: EntityFilterValues): ISalesOrderFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  customerCode: typeof values.customerCode === 'string' ? values.customerCode : undefined,
+  customerSearch: typeof values.customerSearch === 'string' ? values.customerSearch : undefined,
   salespersonCode: typeof values.salespersonCode === 'string' ? values.salespersonCode : undefined,
-  eventCode: typeof values.eventCode === 'string' ? values.eventCode : undefined,
-  status: typeof values.status === 'string' ? (values.status as SalesOrderStatus) : undefined,
-  orderDateFrom: typeof values.orderDateFrom === 'string' ? values.orderDateFrom : undefined,
-  orderDateTo: typeof values.orderDateTo === 'string' ? values.orderDateTo : undefined
+  status: typeof values.status === 'string' ? (values.status as SalesOrderStatus) : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {
@@ -43,6 +43,7 @@ const getListErrorMessage = (error: unknown): string => {
 export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
   canCreateSalesOrder,
   currentUser,
+  customerService,
   salesOrderService,
   salespersonService,
   onNavigate
@@ -60,8 +61,10 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
   const [sorting, setSorting] = React.useState<ISortState | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
+  const salesOrderRequestIdRef = React.useRef<number>(0);
 
   const loadSalesOrders = React.useCallback(async (): Promise<void> => {
+    const requestId = ++salesOrderRequestIdRef.current;
     setLoading(true);
     setError(undefined);
 
@@ -72,18 +75,49 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
         sorting,
         currentUser
       );
-      setItems(result.items);
+      const customerCodes = result.items.reduce<string[]>((codes, item) => {
+        codes.push(item.customerCode, item.clientCode);
+        return codes;
+      }, []);
+      const customerNames = await customerService.getCustomerNamesByCode(customerCodes)
+        .catch(() => new Map<string, string>());
+
+      if (requestId !== salesOrderRequestIdRef.current) {
+        return;
+      }
+
+      setItems(result.items.map(item => ({
+        ...item,
+        sellToCustomerDisplay: formatMasterDataCodeAndName(
+          item.customerCode,
+          customerNames.get(normalizeMasterDataCode(item.customerCode))
+        ),
+        billToCustomerDisplay: formatMasterDataCodeAndName(
+          item.clientCode,
+          customerNames.get(normalizeMasterDataCode(item.clientCode))
+        )
+      })));
       applyResult(result);
     } catch (loadError) {
+      if (requestId !== salesOrderRequestIdRef.current) {
+        return;
+      }
+
       setItems([]);
       setError(getListErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (requestId === salesOrderRequestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [appliedFilterValues, applyResult, currentUser, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
+  }, [appliedFilterValues, applyResult, currentUser, customerService, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
 
   React.useEffect(() => {
     loadSalesOrders().catch(() => undefined);
+
+    return () => {
+      salesOrderRequestIdRef.current += 1;
+    };
   }, [loadSalesOrders]);
 
   React.useEffect(() => {
@@ -143,7 +177,7 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
       onCreate={() => onNavigate(`${salesOrdersModuleConfig.route}/create`)}
       onRowClick={
         salesOrdersModuleConfig.detailEnabled
-          ? item => onNavigate(`${salesOrdersModuleConfig.route}/detail/${encodeURIComponent(item.id || item.salesOrderNumber)}`)
+          ? item => onNavigate(`${salesOrdersModuleConfig.route}/detail/${encodeURIComponent(item.salesOrderNumber)}`)
           : undefined
       }
       onFilterChange={handleFilterChange}

@@ -1,21 +1,17 @@
 import type { ApiClient } from '../../../../shared/api/apiClient';
 import type { IEventDetail, IEventFilters, IEventListItem } from '../../models/events';
-import type { ICursorPaginationState, IServerPagedResult } from '../../../../shared/models/IServerPagination';
+import type { IBcPagedResult, ICursorPaginationState } from '../../../../shared/models/IServerPagination';
 import type { ISortState } from '../../../../shared/models/ISortState';
-import { buildServerPageQuery } from '../../../../shared/utilities/serverPagination';
+import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
 
 interface IEventApiModel {
-  id?: string;
-  eventCode?: string;
-  eventName?: string;
-  code?: string;
-  name?: string;
-  status?: string;
-  description?: string;
-  venue?: string;
+  '@odata.etag': string;
+  dimensionCode: string;
+  code: string;
+  name: string;
 }
 
-type EventApiResponse = IServerPagedResult<IEventApiModel>;
+type EventApiResponse = IBcPagedResult<IEventApiModel>;
 
 export class EventService {
   public constructor(private readonly apiClient: ApiClient) {}
@@ -24,10 +20,9 @@ export class EventService {
     filters: IEventFilters = {},
     pagination: ICursorPaginationState,
     sorting?: ISortState
-  ): Promise<IServerPagedResult<IEventListItem>> {
-    const response = await this.apiClient.get<EventApiResponse>('/api/Events', buildServerPageQuery({
-      searchText: filters.searchText,
-      status: filters.status
+  ): Promise<IBcPagedResult<IEventListItem>> {
+    const response = await this.apiClient.get<EventApiResponse>('/api/Events', buildBcPageQuery({
+      search: filters.searchText
     }, pagination, sorting));
     const result = response.data;
 
@@ -51,17 +46,12 @@ export class EventService {
     return this.mapEventApiToUiModel(response.data);
   }
 
-  public mapEventApiToUiModel(api?: IEventApiModel): IEventDetail {
-    const eventCode = api?.eventCode || api?.code || '';
-    const eventName = api?.eventName || api?.name || eventCode;
-
+  public mapEventApiToUiModel(api: IEventApiModel): IEventDetail {
     return {
-      id: api?.id || eventCode,
-      eventCode,
-      eventName,
-      status: api?.status || 'Active',
-      description: api?.description || eventName,
-      venue: api?.venue || ''
+      id: api.code,
+      dimensionCode: api.dimensionCode,
+      eventCode: api.code,
+      eventName: api.name
     };
   }
 }

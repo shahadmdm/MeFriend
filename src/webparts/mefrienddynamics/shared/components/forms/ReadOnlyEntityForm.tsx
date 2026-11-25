@@ -13,15 +13,16 @@ export interface IReadOnlyEntityFormProps {
   backLabel?: string;
   onBack?: () => void;
   actions?: React.ReactNode;
+  emptyValue?: string;
 }
 
 const getSectionTitle = (field: IFormFieldConfig): string => field.section || 'Details';
 
-const getDisplayValue = (field: IFormFieldConfig, values: EntityFormValues): string => {
+const getDisplayValue = (field: IFormFieldConfig, values: EntityFormValues, emptyValue: string): string => {
   const rawValue = values[field.key];
 
   if (rawValue === undefined || rawValue === null || rawValue === '') {
-    return '-';
+    return emptyValue;
   }
 
   if ((field.type === 'dropdown' || field.type === 'lookup') && field.options) {
@@ -30,20 +31,20 @@ const getDisplayValue = (field: IFormFieldConfig, values: EntityFormValues): str
   }
 
   if (field.type === 'date') {
-    return formatDate(typeof rawValue === 'string' ? rawValue : undefined);
+    return formatDate(typeof rawValue === 'string' ? rawValue : undefined, emptyValue);
   }
 
   if (field.type === 'amount') {
     const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue);
-    return formatAmount(Number.isFinite(numericValue) ? numericValue : undefined);
+    return formatAmount(Number.isFinite(numericValue) ? numericValue : undefined, emptyValue);
   }
 
   return String(rawValue);
 };
 
-const renderField = (field: IFormFieldConfig, values: EntityFormValues): React.ReactNode => {
-  const displayValue = getDisplayValue(field, values);
-  const isPlaceholder = displayValue === '-';
+const renderField = (field: IFormFieldConfig, values: EntityFormValues, emptyValue: string): React.ReactNode => {
+  const displayValue = getDisplayValue(field, values, emptyValue);
+  const isPlaceholder = displayValue === emptyValue;
   const isTextarea = field.type === 'textarea';
 
   return (
@@ -64,7 +65,8 @@ export const ReadOnlyEntityForm: React.FC<IReadOnlyEntityFormProps> = ({
   values = {},
   backLabel = 'Back',
   onBack,
-  actions
+  actions,
+  emptyValue = '-'
 }) => {
   const visibleFields = fields.filter(field => field.hidden !== true);
 
@@ -81,7 +83,7 @@ export const ReadOnlyEntityForm: React.FC<IReadOnlyEntityFormProps> = ({
 
           return (
             <FormSection key={sectionTitle} title={sectionTitle}>
-              {sectionFields.map(field => renderField(field, values))}
+              {sectionFields.map(field => renderField(field, values, emptyValue))}
             </FormSection>
           );
         })}

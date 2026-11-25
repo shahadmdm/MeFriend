@@ -5,14 +5,12 @@ export interface ICustomerListItem {
   id: string;
   customerCode: string;
   customerName: string;
-  branch?: string;
-  department?: string;
   city?: string;
   stateCode?: string;
   countryCode?: string;
   locationCode?: string;
   phoneNumber?: string;
-  status?: string;
+  gstCustomerType?: string;
 }
 
 export interface ICustomerDetail extends ICustomerListItem {
@@ -52,9 +50,6 @@ export interface ICustomerCreateRequest extends ICustomerCreateFormState {}
 
 export interface ICustomerFilters {
   searchText?: string;
-  branch?: string;
-  department?: string;
   city?: string;
-  stateCode?: string;
-  status?: string;
+  gstCustomerType?: string;
 }

@@ -2,6 +2,7 @@ import mefriendLogo from '../../../../../shared/assets/unnamed.png';
 import html2pdf from 'html2pdf.js';
 import type { IInvoiceDetail, IInvoiceLineItem } from '../../../models/invoices';
 import { formatAmount, formatDate } from '../../../../../shared/utilities/formatUtils';
+import { getPrintableInvoiceLines, getPrintableLineDescription } from './invoicePrintUtils';
 
 const companyName = 'MEFRIEND BUSINESS SOLUTIONS LLP';
 const companyAddress = [
@@ -134,30 +135,21 @@ const amountToWords = (amount: number): string => {
   return `${rupeeWords} Rupees${paiseWords} Only`;
 };
 
-const resolveAmountInWords = (invoice: IInvoiceDetail): string => invoice.amountInWords || amountToWords(invoice.totalAmount);
+const resolveAmountInWords = (invoice: IInvoiceDetail): string => typeof invoice.totalAmountIncludingTax === 'number'
+  ? amountToWords(invoice.totalAmountIncludingTax)
+  : '';
 
-const renderAddressLines = (value?: string): string => {
-  return escapeHtml(value).split(/\r?\n/).filter(Boolean).join('<br />');
-};
+const renderAddressParts = (parts: readonly (string | undefined)[]): string => parts
+  .filter(part => Boolean(part && part.trim()))
+  .map(part => escapeHtml(part))
+  .join('<br />');
 
-const getQrMarkup = (invoice: IInvoiceDetail): string => {
-  const qrCodeData = invoice.qrCodeData || '';
-
-  if (!qrCodeData) {
-    return '<div class="qrBox"></div>';
-  }
-
-  if (/^(data:image\/|https?:\/\/)/i.test(qrCodeData)) {
-    return `<img class="qrImage" src="${escapeHtml(qrCodeData)}" alt="Invoice QR code" />`;
-  }
-
-  return `<div class="qrBox qrText" title="${escapeHtml(qrCodeData)}">${escapeHtml(qrCodeData)}</div>`;
-};
+const getQrMarkup = (): string => '<div class="qrBox"></div>';
 
 const renderLine = (line: IInvoiceLineItem, index: number): string => `
   <tr class="itemRow">
     <td class="center">${index + 1}</td>
-    <td>${escapeHtml(line.description)}</td>
+    <td class="descriptionCell">${escapeHtml(getPrintableLineDescription(line))}</td>
     <td class="center">${escapeHtml(line.hsnCode)}</td>
     <td class="center">${escapeHtml(line.gstRate)}</td>
     <td class="center">${escapeHtml(formatQty(line.quantity))}</td>
@@ -176,8 +168,8 @@ const renderBlankLine = (className: string = 'blankLine'): string => `
     <td></td>
   </tr>`;
 
-const resolvePageModeClass = (invoice: IInvoiceDetail): string => {
-  const lineCount = invoice.lines.length;
+const resolvePageModeClass = (printableLines: readonly IInvoiceLineItem[]): string => {
+  const lineCount = printableLines.length;
 
   if (lineCount > 8) {
     return 'multiPage';
@@ -440,6 +432,12 @@ const buildStyles = (): string => `
   .items .lineBody td {
     height: auto;
     min-height: 5.8mm;
+  }
+
+  .items .descriptionCell {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    word-break: normal;
   }
 
   .items .blankLine td {
@@ -708,14 +706,17 @@ export const buildInvoicePrintHtml = (
   logoSrc: string = mefriendLogo,
   options: IInvoiceHtmlOptions = {}
 ): string => {
-  const lineRows = invoice.lines.length
-    ? invoice.lines.map(renderLine).join('')
+  // Totals deliberately use the invoice fields below, not the displayed rows.
+  // This keeps the BC total intact when a G/L round-off adjustment is hidden.
+  const printableLines = getPrintableInvoiceLines(invoice.lines);
+  const lineRows = printableLines.length
+    ? printableLines.map(renderLine).join('')
     : renderBlankLine();
-  const blankRows = invoice.lines.length < 2 ? renderBlankLine() : '';
-  const grossAmount = invoice.netAmount ?? invoice.lines.reduce((total, line) => total + line.lineAmount, 0);
-  const invoiceDiscountAmount = invoice.invoiceDiscountAmountExclVat ?? invoice.tradeDiscount ?? 0;
-  const subTotal = grossAmount - invoiceDiscountAmount;
-  const pageModeClass = resolvePageModeClass(invoice);
+  const blankRows = printableLines.length < 2 ? renderBlankLine() : '';
+  const grossAmount = invoice.subtotal;
+  const invoiceDiscountAmount = invoice.discountAmount;
+  const subTotal = invoice.totalAmountExcludingTax;
+  const pageModeClass = resolvePageModeClass(printableLines);
   const autoPrint = options.autoPrint !== false;
   const downloadMode = options.downloadMode === true;
   const showPreviewBar = options.showPreviewBar !== false;
@@ -725,7 +726,7 @@ export const buildInvoicePrintHtml = (
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tax Invoice ${escapeHtml(invoice.invoiceNumber)}</title>
+  <title>Tax Invoice ${escapeHtml(invoice.number)}</title>
   <style>${buildStyles()}</style>
   ${autoPrint ? `<script>
     (function () {
@@ -776,7 +777,7 @@ ${waitForInvoiceAssetsScript()}
       </colgroup>
       <tbody>
         <tr class="invoiceInfo">
-          <td>Invoice No : ${escapeHtml(invoice.invoiceNumber)}</td>
+          <td>Invoice No : ${escapeHtml(invoice.number)}</td>
           <td>Invoice Date : ${escapeHtml(formatPrintDate(invoice.invoiceDate))}</td>
         </tr>
         <tr class="sectionHead">
@@ -785,23 +786,21 @@ ${waitForInvoiceAssetsScript()}
         </tr>
         <tr class="party">
           <td>
-            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.customerName)}</span></div>
-            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.customerAddress)}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.customerGSTNo)}</span></div>
-            <div class="partyLine"><span>GST State</span><span>:</span><span>${escapeHtml(invoice.customerGSTState)}</span></div>
+            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.billToCustomerName)}</span></div>
+            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressParts([invoice.billToAddressLine1, invoice.billToAddressLine2, invoice.billToCity, invoice.billToState, invoice.billToPostCode, invoice.billToCountryCode])}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.billToCustomerGSTRegistrationNumber)}</span></div>
           </td>
           <td>
-            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.clientName)}</span></div>
-            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressLines(invoice.clientAddress)}</span></div>
-            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.clientGSTNo)}</span></div>
-            <div class="partyLine"><span>GST State</span><span>:</span><span>${escapeHtml(invoice.clientGSTState)}</span></div>
+            <div class="partyLine"><span>Name</span><span>:</span><span>${escapeHtml(invoice.shipToName)}</span></div>
+            <div class="partyLine address"><span>Address</span><span>:</span><span>${renderAddressParts([invoice.shipToAddressLine1, invoice.shipToAddressLine2, invoice.shipToCity, invoice.shipToState, invoice.shipToPostCode, invoice.shipToCountryCode])}</span></div>
+            <div class="partyLine"><span>GSTIN</span><span>:</span><span>${escapeHtml(invoice.shipToCustomerGSTRegistrationNumber)}</span></div>
           </td>
         </tr>
         <tr class="reference">
-          <td><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salesPerson)}</span></div></td>
+          <td><div class="salesPerson"><span>Sales Person</span><span>:</span><span>${escapeHtml(invoice.salespersonName || invoice.salesperson)}</span></div></td>
           <td>
-            <div class="bookingLine"><span>Booking Order No</span><span>:</span><span>${escapeHtml(invoice.salesOrderNumber)}</span></div>
-            <div class="bookingLine"><span>Booking Order Date</span><span>:</span><span>${escapeHtml(formatPrintDate(invoice.salesOrderDate))}</span></div>
+            <div class="bookingLine"><span>Release Order No.</span><span>:</span><span>${escapeHtml(invoice.releaseOrderNumber)}</span></div>
+            <div class="bookingLine"><span>Release Order Date</span><span>:</span><span>${escapeHtml(formatPrintDate(invoice.releaseOrderDate))}</span></div>
           </td>
         </tr>
       </tbody>
@@ -818,7 +817,7 @@ ${waitForInvoiceAssetsScript()}
       </colgroup>
       <thead>
         <tr class="continuedHeaderRow">
-          <th colspan="7">TAX INVOICE &nbsp; ${escapeHtml(invoice.invoiceNumber)} &nbsp; ${escapeHtml(formatPrintDate(invoice.invoiceDate))}</th>
+          <th colspan="7">TAX INVOICE &nbsp; ${escapeHtml(invoice.number)} &nbsp; ${escapeHtml(formatPrintDate(invoice.invoiceDate))}</th>
         </tr>
         <tr>
           <th class="center">Sl. No.</th>
@@ -836,29 +835,23 @@ ${waitForInvoiceAssetsScript()}
       </tbody>
       <tbody class="summaryRows">
         <tr><td colspan="6" class="summaryLabel">Gross Amount</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(grossAmount))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">Invoice Discount${invoice.invoiceDiscountPercent !== undefined ? ` (${escapeHtml(String(invoice.invoiceDiscountPercent))}%)` : ''}</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoiceDiscountAmount))}</td></tr>
+        <tr><td colspan="6" class="summaryLabel">Trade Discount</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoiceDiscountAmount))}</td></tr>
         <tr><td colspan="6" class="summaryLabel">Sub Total</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(subTotal))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">SGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.sgst))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">CGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.cgst))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">IGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.igst))}</td></tr>
-        <tr><td colspan="6" class="summaryLabel">Round&nbsp; Off</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.roundOffAmount))}</td></tr>
-        <tr class="grandTotal"><td colspan="6" class="summaryLabel">Grand Total</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.totalAmount))}</td></tr>
+        <tr><td colspan="6" class="summaryLabel">SGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.sgstAmount))}</td></tr>
+        <tr><td colspan="6" class="summaryLabel">CGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.cgstAmount))}</td></tr>
+        <tr><td colspan="6" class="summaryLabel">IGST</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.igstAmount))}</td></tr>
+        <tr class="grandTotal"><td colspan="6" class="summaryLabel">Net Amount</td><td class="summaryValue numberCell">${escapeHtml(formatMoney(invoice.totalAmountIncludingTax))}</td></tr>
       </tbody>
     </table>
     <section class="footerArea" aria-label="Invoice footer">
       <div class="amountQr">
         <div class="amountWords">Amount in Words: <span class="amountText">${escapeHtml(resolveAmountInWords(invoice))}</span></div>
-        ${getQrMarkup(invoice)}
+        ${getQrMarkup()}
       </div>
       <div class="bankIrn">
         <div>
           <div class="bankTitle">Bank Account Details</div>
           ${bankDetails.map(detail => `<div class="bankLine">${escapeHtml(detail)}</div>`).join('')}
-        </div>
-        <div class="irnBlock">
-          <div class="irnLine"><span>IRN</span><span>:</span><span>${escapeHtml(invoice.irn)}</span></div>
-          <div class="irnLine"><span>Ack No</span><span>:</span><span>${escapeHtml(invoice.acknowledgementNumber)}</span></div>
-          <div class="irnLine"><span>Ack Date</span><span>:</span><span>${escapeHtml(formatPrintDate(invoice.acknowledgementDate))}</span></div>
         </div>
       </div>
       <p class="terms"><strong>Payment Terms:</strong>All payments are to be made in favor of <strong>Mefriend Business Solutions LLP</strong> through Crossed<br />Cheques/ Demand Drafts / Direct Bank Transfer.</p>
@@ -882,7 +875,7 @@ const sanitizeFileName = (value: string): string => normalizeFileName(value)
   .replace(/[^a-zA-Z0-9._-]+/g, '-')
   .replace(/^-+|-+$/g, '') || 'invoice';
 
-const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `Invoice_${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
+const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `Invoice_${sanitizeFileName(invoice.number)}.pdf`;
 
 const waitForDocumentAssets = async (invoiceDocument: Document): Promise<void> => {
   const images = Array.from(invoiceDocument.images || []);
