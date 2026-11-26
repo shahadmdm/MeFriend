@@ -8,7 +8,7 @@ export const chequeEntryModuleConfig: IModuleConfig<{ id: string }> = {
   key: 'chequeEntry',
   title: 'Cheque Entry',
   route: 'cheque-entry',
-  icon: 'Invoice',
+  icon: 'PaymentCard',
   description: 'Record cheque details and bill assignments.',
   createEnabled: false,
   detailEnabled: false,

@@ -15,7 +15,7 @@ const displayAmount = (value?: number): string =>
 
 export const invoicesModuleConfig: IModuleConfig<IInvoiceListItem> = {
   key: 'invoices',
-  title: 'Invoices',
+  title: 'Sales Invoices',
   route: 'invoices',
   icon: 'Invoice',
   description: 'Invoice listing and details from Business Central.',
