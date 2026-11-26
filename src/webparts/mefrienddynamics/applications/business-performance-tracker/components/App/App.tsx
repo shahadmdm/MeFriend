@@ -1,4 +1,4 @@
-import * as React from 'react';
+﻿import * as React from 'react';
 import type {
   IPortalApplicationProps
 } from '../../../../shared/models/IPortalApplicationProps';
@@ -95,6 +95,7 @@ import {
 } from '../modules/modulePermissions/BusinessPerformanceModulePermissionsPage';
 import { SettingsPage } from '../modules/settings/SettingsPage';
 import { BptInvoicesRoute } from '../modules/invoices/BptInvoicesRoute';
+import { ChequeEntryPage } from '../modules/ChequeEntry';
 import {
   resolveRoute,
   buildHashHref
@@ -102,6 +103,7 @@ import {
 import styles from '../../../bc-extension/components/App/App.module.scss';
 const sharePointWebAbsoluteUrl =
   appConfig.sharePointSettings.masterDataWebUrl;
+const chequeEntryListTitle = 'Business Performance Cheque Entries';
 type RouteAction = 'view' | 'create' | 'manage';
 interface IRouteAccessRequirement {
   moduleKey: BusinessPerformancePermissionModuleKey;
@@ -167,6 +169,10 @@ const routeAccessRequirements:
       moduleKey: 'bpt.invoices',
       action: 'view'
     },
+    chequeEntry: {
+      moduleKey: 'bpt.chequeEntry',
+      action: 'view'
+    },
 
     unitAccess: {
       moduleKey: 'bpt.unitAccess',
@@ -214,6 +220,9 @@ const getAuthorizedLandingRoute = (
   if (access.canView('bpt.invoices')) {
     return 'invoices';
   }
+  if (access.canView('bpt.chequeEntry')) {
+    return 'chequeEntry';
+  }
 
   if (
     access.canManage('bpt.app') ||
@@ -252,6 +261,9 @@ const getAllowedModuleKeys = (
   }
   if (access.canView('bpt.invoices')) {
     allowedModuleKeys.push('invoices');
+  }
+  if (access.canView('bpt.chequeEntry')) {
+    allowedModuleKeys.push('chequeEntry');
   }
 
   // Settings is opened from the signed-in user popup.
@@ -624,6 +636,31 @@ export const App: React.FC<IPortalApplicationProps> = ({
           isDetail={route.key === 'invoiceDetail'}
           invoiceNumber={route.key === 'invoiceDetail' ? route.params.id || '' : undefined}
           onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    // Cheque Entry uses SharePoint storage, the selected company and Unit Access.
+    if (route.key === 'chequeEntry') {
+      // The SPFx HTTP client is optional; fail closed if it is unavailable.
+      if (!spHttpClient) {
+        return (
+          <div role="alert">
+            Cheque Entry cannot load because the SharePoint HTTP client is unavailable.
+          </div>
+        );
+      }
+      return (
+        <ChequeEntryPage
+          spHttpClient={spHttpClient}
+          webAbsoluteUrl={sharePointWebAbsoluteUrl}
+          selectedCompanyId={selectedCompanyId}
+          unitService={unitService}
+          unitAccessService={unitAccessService}
+          appUserId={access.appUserId}
+          canCreate={access.canCreate('bpt.chequeEntry')}
+          canManage={access.canManage('bpt.chequeEntry')}
+          listTitle={chequeEntryListTitle}
         />
       );
     }

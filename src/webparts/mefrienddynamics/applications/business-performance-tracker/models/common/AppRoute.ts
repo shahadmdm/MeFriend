@@ -1,3 +1,4 @@
+
 export type AppRouteKey =
   | 'verticals'
   | 'verticalCreate'
@@ -15,7 +16,8 @@ export type AppRouteKey =
   | 'modulePermissions'
   | 'settings'
   | 'invoices'
-  | 'invoiceDetail';
+  | 'invoiceDetail'
+  | 'chequeEntry';
 
 export interface IAppRouteDefinition {
   key: AppRouteKey;
